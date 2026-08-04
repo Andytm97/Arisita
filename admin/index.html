@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0c0f">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png">
+  <title>ARIS — Cuaderno de recuerdos</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-page">
+  <main class="admin-app">
+    <header class="admin-topbar">
+      <div><p class="admin-eyebrow">ARIS · TU CUADERNO</p><h1>Preparar un recuerdo</h1></div>
+      <a class="admin-link" href="../index.html" target="_blank" rel="noopener">Ver álbum</a>
+    </header>
+
+    <section class="admin-grid">
+      <form id="memoryForm" class="editor-panel" novalidate>
+        <div class="panel-heading"><div><p class="step-label">NUEVO RECUERDO</p><h2>¿Qué quieres contarle hoy?</h2></div><button id="resetForm" class="ghost-button" type="button">Limpiar</button></div>
+
+        <label class="field"><span>Fecha</span><input id="fecha" name="fecha" type="date" required></label>
+        <label class="field"><span>Título</span><input id="titulo" name="titulo" type="text" maxlength="90" placeholder="Hoy quería enseñarte algo…" required></label>
+        <label class="field"><span>Tipo de contenido</span>
+          <select id="tipo" name="tipo">
+            <option value="foto">Fotografía</option><option value="texto">Carta</option><option value="video">Vídeo</option><option value="audio">Nota de voz</option><option value="spotify">Spotify</option><option value="youtube">YouTube</option><option value="ubicacion">Ubicación</option>
+          </select>
+        </label>
+
+        <div id="dynamicFields" class="dynamic-fields"></div>
+        <label class="field checkbox-field"><input id="destacado" name="destacado" type="checkbox"><span>Marcar como recuerdo destacado</span></label>
+
+        <div class="form-actions"><button class="primary-button" type="submit">Guardar recuerdo</button><button id="previewButton" class="secondary-button" type="button">Actualizar vista previa</button></div>
+        <p id="formStatus" class="form-status" aria-live="polite"></p>
+      </form>
+
+      <aside class="preview-panel">
+        <div class="panel-heading"><div><p class="step-label">VISTA PREVIA</p><h2>Así lo verá ella</h2></div></div>
+        <div class="preview-stage"><article id="previewCard" class="memory-card memory-card--current admin-preview-card"></article></div>
+      </aside>
+    </section>
+
+    <section class="cover-admin-panel">
+      <div class="panel-heading">
+        <div><p class="step-label">PORTADA</p><h2>Cambiar foto de portada</h2></div>
+        <button id="restoreCover" class="ghost-button" type="button">Restaurar original</button>
+      </div>
+      <div class="cover-admin-grid">
+        <div class="cover-admin-copy">
+          <p>Esta imagen será la portada y el fondo fijo de ARIS en este dispositivo.</p>
+          <div class="picker-actions">
+            <button id="pickCoverGallery" class="secondary-button picker-button" type="button">Elegir de la galería</button>
+            <button id="pickCoverCamera" class="secondary-button picker-button" type="button">Hacer una foto</button>
+          </div>
+          <input id="coverGalleryInput" class="visually-hidden" type="file" accept="image/*">
+          <input id="coverCameraInput" class="visually-hidden" type="file" accept="image/*" capture="environment">
+          <button id="saveCover" class="primary-button cover-save-button" type="button" disabled>Guardar portada</button>
+          <p id="coverStatus" class="form-status" aria-live="polite"></p>
+          <p class="field-hint">Se comprime automáticamente. Por ahora se guarda solo en este navegador; La imagen se guarda en este navegador y también se incluye al exportar el proyecto.</p>
+        </div>
+        <div class="cover-admin-preview" aria-label="Vista previa de portada">
+          <img id="coverPreviewImage" alt="Vista previa de la portada">
+          <div class="cover-admin-overlay">
+            <span>PARA QUE LA DISTANCIA NUNCA GANE</span>
+            <strong>Un pedacito de nosotros, cada día.</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="library-panel">
+      <div class="panel-heading"><div><p class="step-label">BORRADORES LOCALES</p><h2>Recuerdos preparados</h2></div><div class="library-actions"><button id="exportButton" class="secondary-button" type="button">Exportar JSON</button><button id="clearDrafts" class="ghost-button danger" type="button">Borrar borradores</button></div></div>
+      <div id="memoryList" class="memory-list"></div>
+      <p class="storage-note">Estos cambios se guardan solo en este navegador. El álbum los carga automáticamente durante las pruebas. Cuando termines, exporta el JSON para conservar una copia de tus recuerdos.</p>
+    </section>
+  </main>
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
