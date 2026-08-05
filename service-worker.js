@@ -1,11 +1,10 @@
-const CACHE_NAME = "aris-v1-20260804-direct-cover-v2";
+const CACHE_NAME = "aris-v1-firebase-20260805-v2-empty";
 const CORE = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest",
-  "./src/app.js", "./src/core/utils.js", "./src/core/content-model.js",
+  "./src/app.js", "./src/firebase/firebase-config.js", "./src/firebase/firebase-service.js", "./src/core/utils.js", "./src/core/content-model.js",
   "./src/components/memory-renderer.js", "./src/data/demo-data.js",
   "./data/contenido.json", "./assets/fondo.jpg", "./assets/favicon.svg",
   "./assets/icons/icon-192.png", "./assets/icons/icon-512.png",
-  "./assets/media/nota-demo.m4a", "./assets/media/video-demo.mp4",
   "./admin/", "./admin/index.html", "./admin/admin.css", "./admin/admin.js"
 ];
 self.addEventListener("install", event => {

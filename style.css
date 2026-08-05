@@ -1781,3 +1781,49 @@ body.cover-gesture-settling .album {
 .install-hint p { margin:3px 0 0;color:rgba(255,255,255,.58);font-size:11px;line-height:1.35; }
 .install-hint-close { width:28px;height:28px;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:rgba(255,255,255,.72);font-size:19px;line-height:1; }
 @media (display-mode: standalone) { .install-hint { display:none!important; } }
+
+
+/* Estado inicial sin recuerdos publicados. */
+.empty-album-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 30px;
+  text-align: center;
+}
+
+.empty-album-symbol {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 50%;
+  background: rgba(255,255,255,.07);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.empty-album-card h2 {
+  max-width: 280px;
+  margin: 4px 0 0;
+  font-size: clamp(25px, 7vw, 34px);
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.empty-album-card > p:last-child {
+  max-width: 260px;
+  margin: 0;
+  color: rgba(255,255,255,.68);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.countdown-message {
+  max-width: none !important;
+  font-size: 14px !important;
+  letter-spacing: .01em !important;
+}

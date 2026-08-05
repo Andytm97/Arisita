@@ -32,7 +32,6 @@ export function normalizarContenido(origen, fallback) {
 
   return {
     nombre: base.nombre || fallback.nombre || "Aris",
-    diasRestantes: base.diasRestantes ?? fallback.diasRestantes ?? 82,
     portada: base.portada || fallback.portada || {},
     recuerdos,
     paginas

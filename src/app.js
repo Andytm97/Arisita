@@ -2,6 +2,7 @@ import { DEMO_DATA } from "./data/demo-data.js";
 import { normalizarContenido } from "./core/content-model.js";
 import { escapar, atributoSeguro, suavizarProgreso, formatearTiempo } from "./core/utils.js";
 import { renderTarjeta } from "./components/memory-renderer.js";
+import { obtenerRecuerdosFirebase, obtenerPortadaFirebase } from "./firebase/firebase-service.js";
 
 let data = DEMO_DATA;
 let paginas = [];
@@ -40,40 +41,65 @@ async function iniciar() {
     if (!respuesta.ok) throw new Error("No se pudo cargar contenido.json");
     baseRemota = await respuesta.json();
   } catch (error) {
-    console.info("Modo local: se usa el contenido de demostración incluido en la aplicación.");
+    console.info("Se usa el contenido de demostración incluido en la aplicación.");
   }
 
   const baseNormalizada = normalizarContenido(baseRemota, DEMO_DATA);
-  let contenidoLocal = null;
-  try { contenidoLocal = JSON.parse(localStorage.getItem("aris-content-draft-v1") || "null"); } catch (_) {}
+  let recuerdosFirebase = [];
+  let portadaFirebase = null;
 
-  if (contenidoLocal?.version === 2 && Array.isArray(contenidoLocal.recuerdos)) {
-    const ids = new Set(baseNormalizada.recuerdos.map((recuerdo) => recuerdo.id));
-    const recuerdosLocales = contenidoLocal.recuerdos.filter((recuerdo) => !ids.has(recuerdo.id));
-    data = normalizarContenido({
-      ...baseRemota,
-      recuerdos: [...baseNormalizada.recuerdos, ...recuerdosLocales]
-    }, DEMO_DATA);
-  } else if (contenidoLocal) {
-    // Compatibilidad con los borradores creados por versiones anteriores.
-    data = normalizarContenido(contenidoLocal, baseRemota);
-  } else {
-    data = baseNormalizada;
+  try {
+    [recuerdosFirebase, portadaFirebase] = await Promise.all([
+      obtenerRecuerdosFirebase(),
+      obtenerPortadaFirebase()
+    ]);
+  } catch (error) {
+    console.warn("Firebase no está disponible; ARIS continúa con el contenido incluido.", error);
   }
 
+  const porId = new Map(baseNormalizada.recuerdos.map(recuerdo => [recuerdo.id, recuerdo]));
+  recuerdosFirebase.forEach(recuerdo => porId.set(recuerdo.id, recuerdo));
+
+  data = normalizarContenido({
+    ...baseRemota,
+    portada: portadaFirebase?.contenido
+      ? { ...(baseRemota.portada || {}), contenido: portadaFirebase.contenido }
+      : baseRemota.portada,
+    recuerdos: [...porId.values()]
+  }, DEMO_DATA);
+
   prepararAplicacion(data);
+}
+
+const FECHA_REENCUENTRO = new Date(2026, 9, 9);
+
+function actualizarCuentaAtras() {
+  const pie = document.getElementById("cuentaAtras");
+  if (!pie) return;
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const destino = new Date(FECHA_REENCUENTRO);
+  destino.setHours(0, 0, 0, 0);
+  const dias = Math.ceil((destino - hoy) / 86400000);
+
+  if (dias > 1) {
+    pie.innerHTML = `<span>Quedan</span><strong id="contador">${dias}</strong><span>días para vernos.</span>`;
+  } else if (dias === 1) {
+    pie.innerHTML = `<span>Queda</span><strong id="contador">1</strong><span>día para vernos.</span>`;
+  } else if (dias === 0) {
+    pie.innerHTML = `<strong class="countdown-message">Hoy nos vemos ❤️</strong>`;
+  } else {
+    pie.innerHTML = `<strong class="countdown-message">Por fin estamos juntos ❤️</strong>`;
+  }
 }
 
 function prepararAplicacion(contenido) {
   data = normalizarContenido(contenido, DEMO_DATA);
   document.getElementById("nombre").textContent = data.nombre || "Aris";
-  document.getElementById("contador").textContent = String(data.diasRestantes ?? 82);
+  actualizarCuentaAtras();
   portada = { ...(data.portada || DEMO_DATA.portada) };
-  try {
-    const portadaLocal = localStorage.getItem(COVER_STORAGE_KEY);
-    if (portadaLocal) portada.contenido = portadaLocal;
-  } catch (_) {}
-  paginas = Array.isArray(data.paginas) && data.paginas.length ? data.paginas : DEMO_DATA.paginas;
+  paginas = Array.isArray(data.paginas) ? data.paginas : [];
   crearIndicadores();
   mostrarPortada();
 }
@@ -157,6 +183,26 @@ function actualizarIndicadores() {
 
 function mostrarPagina({ instantaneo = true } = {}) {
   document.body.classList.remove("cover-mode");
+
+  if (!paginas.length) {
+    configurarTarjeta(tarjetaAnterior, null, -1);
+    configurarTarjeta(tarjetaSiguiente, null, -1);
+    tarjetaActual.dataset.index = "vacio";
+    tarjetaActual.setAttribute("aria-hidden", "false");
+    tarjetaActual.innerHTML = `
+      <div class="card-inner empty-album-card">
+        <p class="memory-label">Nuestro álbum</p>
+        <div class="empty-album-symbol" aria-hidden="true">♡</div>
+        <h2>Aquí empezará nuestra historia.</h2>
+        <p>El primer recuerdo aparecerá muy pronto.</p>
+      </div>`;
+    numeroPagina.textContent = "—";
+    textoGesto.textContent = "Todavía no hay recuerdos";
+    actualizarIndicadores();
+    resetVisual(instantaneo);
+    return;
+  }
+
   configurarTarjeta(tarjetaAnterior, obtenerPagina(paginaActual - 1), paginaActual - 1);
   configurarTarjeta(tarjetaActual, obtenerPagina(paginaActual), paginaActual);
   configurarTarjeta(tarjetaSiguiente, obtenerPagina(paginaActual + 1), paginaActual + 1);
