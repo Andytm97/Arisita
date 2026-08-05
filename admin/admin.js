@@ -137,7 +137,7 @@ function setCoverStatus(message,isError=false){
 
 async function loadBase(){
   try{const r=await fetch("../data/contenido.json",{cache:"no-store"});if(r.ok)return await r.json();}catch(_){}
-  return {nombre:"Aris",diasRestantes:82,portada:{titulo:"Un pedacito de nosotros, cada día.",texto:"Para que la distancia nunca se sienta tan lejos.",contenido:"assets/fondo.jpg"},recuerdos:[]};
+  return {nombre:"Aris",diasRestantes:82,portada:{titulo:"A PESAR DE LA DISTANCIA...",texto:"Para que nos podamos sentir un poco más cerca.",contenido:"assets/fondo.jpg"},recuerdos:[]};
 }
 
 function renderFields(){

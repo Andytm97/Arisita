@@ -161,7 +161,7 @@ function mostrarPortada() {
   tarjetaActual.dataset.index = "portada";
   tarjetaActual.innerHTML = `
     <div class="card-inner cover-card">
-      <p class="cover-kicker">Para que la distancia nunca gane</p>
+      <p class="cover-kicker">A PESAR DE LA DISTANCIA...</p>
       <h2 class="cover-title">${escapar(portada.titulo || "Un pedacito de nosotros, cada día.")}</h2>
       <p class="cover-copy">${escapar(portada.texto || "Tengo algo que enseñarte.")}</p>
       <div class="cover-arrow" aria-hidden="true"></div>
