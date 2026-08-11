@@ -243,6 +243,25 @@ export async function reemplazarGaleriaPortadasFirebase(dataUrls) {
   return urls;
 }
 
+export async function actualizarGaleriaPortadasFirebase({ imagenesActuales = [], nuevas = [], eliminadas = [] }) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  const conservadas = imagenesActuales.filter(url => !eliminadas.includes(url));
+  const subidas = [];
+  for (let index = 0; index < nuevas.length; index += 1) {
+    const dataUrl = nuevas[index];
+    if (!String(dataUrl).startsWith("data:")) continue;
+    const tipo = String(dataUrl).slice(5, String(dataUrl).indexOf(";")) || "image/jpeg";
+    const referencia = ref(storage, `aris/recuerdos/configuracion/portada-galeria-${Date.now()}-${index}.jpg`);
+    await uploadString(referencia, dataUrl, "data_url", { contentType: tipo, cacheControl: "public,max-age=31536000,immutable" });
+    subidas.push(await getDownloadURL(referencia));
+  }
+  const imagenes = [...conservadas, ...subidas];
+  if (!imagenes.length) throw new Error("La colección debe conservar al menos una fotografía.");
+  await setDoc(doc(db, "configuracion", "portada"), { contenido: imagenes[0], imagenes, updatedAt: serverTimestamp() }, { merge: true });
+  await Promise.allSettled(eliminadas.map(url => deleteObject(ref(storage, url))));
+  return imagenes;
+}
+
 export async function guardarAjustesPortadaFirebase(ajustes) {
   if (!usuarioEsAdmin()) throw new Error("No autorizado.");
   await setDoc(doc(db, "configuracion", "portada"), { ...ajustes, updatedAt: serverTimestamp() }, { merge: true });
@@ -256,6 +275,8 @@ export async function obtenerPortadaFirebase() {
 export async function restaurarPortadaFirebase() {
   if (!usuarioEsAdmin()) throw new Error("No autorizado.");
   await deleteDoc(doc(db, "configuracion", "portada"));
+  const carpeta = await listAll(ref(storage, "aris/recuerdos/configuracion")).catch(() => ({ items: [] }));
+  await Promise.allSettled(carpeta.items.map(item => deleteObject(item)));
 }
 
 export async function guardarReencuentroFirebase(fecha) {
