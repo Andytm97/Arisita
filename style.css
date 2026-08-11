@@ -43,6 +43,7 @@ a { -webkit-tap-highlight-color: transparent; }
   transform: scale(1.16);
   transition: background-image .7s ease, filter .7s ease;
 }
+.background-image{display:block;width:100%;height:100%;object-fit:cover;object-position:center 44%;user-select:none;pointer-events:none}
 
 .background-shade {
   position: fixed;
@@ -1807,13 +1808,8 @@ body.cover-intro .cover-arrow{animation:arisArrowReveal 700ms 650ms cubic-bezier
 @keyframes arisArrowReveal{from{opacity:0;transform:translate3d(0,12px,0) scale(.88)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
 @media(prefers-reduced-motion:reduce){body.cover-intro .background,body.cover-intro .background-shade,body.cover-intro .cover-kicker,body.cover-intro .cover-title,body.cover-intro .cover-copy,body.cover-intro .cover-arrow{animation:none!important}}
 .cover-card {
-  background-image:
-    linear-gradient(180deg, rgba(8,7,10,.08), rgba(8,7,10,.18) 45%, rgba(8,7,10,.78)),
-    var(--aris-cover-image) !important;
-  background-position: center var(--aris-cover-position,44%) !important;
-  background-size: cover !important;
-  background-repeat: no-repeat !important;
-  background-repeat: no-repeat !important;
+  background-image:linear-gradient(180deg,rgba(8,7,10,.08),rgba(8,7,10,.18) 45%,rgba(8,7,10,.78))!important;
+  background-color:transparent!important;
 }
 
 

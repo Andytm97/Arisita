@@ -29,6 +29,8 @@ const backgroundShade = document.querySelector(".background-shade");
 const album = document.querySelector(".album");
 let fechaReencuentro = "2026-10-09";
 let configGeneral = {};
+const paginaFinal = { id: "proximo-recuerdo", tipo: "proximo", titulo: "Aquí aparecerá el próximo recuerdo.", descripcion: "Cuando Andrés publique algo nuevo, lo encontrarás justo aquí." };
+const conPaginaFinal = items => [...items, paginaFinal];
 
 function prepararRecuerdosVisibles(items) {
   const now = Date.now();
@@ -103,7 +105,7 @@ async function iniciar() {
   prepararAplicacion(data);
   revelarAplicacion();
   let firstSnapshot = true;
-  observarRecuerdosFirebase(items => { if (firstSnapshot) { firstSnapshot = false; return; } const updated = normalizarContenido({ ...data, recuerdos: prepararRecuerdosVisibles(items) }, DEMO_DATA); const previousCount = paginas.length; data = updated; paginas = updated.paginas; crearIndicadores(); if (enAlbum) { paginaActual = Math.min(paginaActual, Math.max(0, paginas.length - 1)); mostrarPagina(); } if (paginas.length > previousCount) mostrarAvisoNuevoRecuerdo(); });
+  observarRecuerdosFirebase(items => { if (firstSnapshot) { firstSnapshot = false; return; } const updated = normalizarContenido({ ...data, recuerdos: prepararRecuerdosVisibles(items) }, DEMO_DATA); const previousCount = paginas.length; data = updated; paginas = conPaginaFinal(updated.paginas); crearIndicadores(); if (enAlbum) { paginaActual = Math.min(paginaActual, Math.max(0, paginas.length - 1)); mostrarPagina(); } if (paginas.length > previousCount) mostrarAvisoNuevoRecuerdo(); });
 }
 
 function mostrarAvisoNuevoRecuerdo() { const notice = document.createElement("div"); notice.className = "new-memory-toast"; notice.textContent = "Hay un recuerdo nuevo para ti ♥"; document.body.appendChild(notice); requestAnimationFrame(() => notice.classList.add("is-visible")); setTimeout(() => notice.remove(), 3200); }
@@ -135,7 +137,7 @@ function prepararAplicacion(contenido) {
   document.getElementById("nombre").textContent = data.nombre || "Aris";
   actualizarCuentaAtras();
   portada = { ...(data.portada || DEMO_DATA.portada) };
-  paginas = Array.isArray(data.paginas) ? data.paginas : [];
+  paginas = conPaginaFinal(Array.isArray(data.paginas) ? data.paginas : []);
   crearIndicadores();
   mostrarPortada();
 }
@@ -157,7 +159,9 @@ async function prepararRespuesta(elemento, pagina) {
   let response = null;
   try { response = await obtenerRespuestaFirebase(pagina.recuerdoId); } catch (_) {}
   const heart = actions.querySelector(".response-heart");
+  const noteButton = actions.querySelector(".response-note");
   if (response?.corazon) { heart.textContent = "♥"; heart.classList.add("is-active"); }
+  if (response?.nota) noteButton.textContent = "Notas";
   heart.addEventListener("click", async event => {
     event.stopPropagation();
     const active = !heart.classList.contains("is-active");
@@ -165,10 +169,10 @@ async function prepararRespuesta(elemento, pagina) {
     try { await guardarRespuestaFirebase(pagina.recuerdoId, { corazon: active, nota: response?.nota || "" }); response = { ...(response || {}), corazon: active }; }
     catch (error) { heart.classList.toggle("is-active", !active); heart.textContent = active ? "♡" : "♥"; alert(error.message); }
   });
-  actions.querySelector(".response-note").addEventListener("click", event => { event.stopPropagation(); abrirNota(pagina, response); });
+  noteButton.addEventListener("click", event => { event.stopPropagation(); abrirNota(pagina, response, saved => { response = saved; noteButton.textContent = saved.nota ? "Notas" : "Deja una nota"; }); });
 }
 
-function abrirNota(pagina, response) {
+function abrirNota(pagina, response, onSaved) {
   let modal = document.getElementById("responseModal");
   if (!modal) {
     modal = document.createElement("div"); modal.id = "responseModal"; modal.className = "response-modal";
@@ -179,7 +183,7 @@ function abrirNota(pagina, response) {
   }
   const textarea = modal.querySelector("textarea"); textarea.value = response?.nota || "";
   const form = modal.querySelector("form"); const status = modal.querySelector(".response-status");
-  form.onsubmit = async event => { event.preventDefault(); status.textContent = "Guardando…"; try { await guardarRespuestaFirebase(pagina.recuerdoId, { corazon: Boolean(response?.corazon), nota: textarea.value.trim() }); status.textContent = "Nota guardada ♥"; setTimeout(() => modal.classList.remove("is-open"), 500); } catch (error) { status.textContent = error.message; } };
+  form.onsubmit = async event => { event.preventDefault(); status.textContent = "Guardando…"; try { const saved = { ...(response || {}), corazon: Boolean(response?.corazon), nota: textarea.value.trim() }; await guardarRespuestaFirebase(pagina.recuerdoId, saved); onSaved?.(saved); status.textContent = "Nota guardada ♥"; setTimeout(() => modal.classList.remove("is-open"), 500); } catch (error) { status.textContent = error.message; } };
   modal.classList.add("is-open"); setTimeout(() => textarea.focus(), 200);
 }
 
@@ -289,13 +293,12 @@ function mostrarPagina({ instantaneo = true } = {}) {
 
 function cambiarFondo() {
   const segura = portada.contenido || "assets/fondo.jpg";
-  const urlSegura = segura.replaceAll('"', '\"');
-  background.style.backgroundImage = `url("${urlSegura}")`;
-  document.documentElement.style.setProperty("--aris-cover-image", `url("${urlSegura}")`);
+  background.style.backgroundImage = "none";
+  let image = background.querySelector(".background-image");
+  if (!image) { image = document.createElement("img"); image.className = "background-image"; image.alt = ""; background.appendChild(image); }
+  image.src = segura;
+  image.style.objectPosition = `center ${portada.position ?? 44}%`;
   document.documentElement.style.setProperty("--aris-cover-position", `${portada.position ?? 44}%`);
-  background.style.backgroundPosition = `center ${portada.position ?? 44}%`;
-  background.style.backgroundSize = "cover";
-  background.style.backgroundRepeat = "no-repeat";
   if (backgroundShade) backgroundShade.style.opacity = String(.55 + (portada.shade ?? 22) / 170);
 }
 

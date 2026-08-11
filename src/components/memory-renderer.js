@@ -15,6 +15,10 @@ export function renderTarjeta(pagina) {
     return `<div class="card-inner locked-card"><div class="locked-symbol" aria-hidden="true">♥</div><p class="memory-label">UNA SORPRESA PARA TI</p><h2 class="card-title">${escapar(pagina.titulo)}</h2><p class="card-description">${escapar(pagina.descripcion)}</p></div>`;
   }
 
+  if (tipo === "proximo") {
+    return `<div class="card-inner empty-album-card"><p class="memory-label">NUESTRO ÁLBUM</p><div class="empty-album-symbol" aria-hidden="true">♡</div><h2>${escapar(pagina.titulo)}</h2><p>${escapar(pagina.descripcion)}</p></div>`;
+  }
+
   if (tipo === "foto") {
     return `<div class="card-inner photo-card">${meta}
       <div class="photo-wrap"><img class="photo" src="${escapar(pagina.contenido || "assets/fondo.jpg")}" alt="Recuerdo fotográfico"></div>
