@@ -1811,7 +1811,8 @@ body.cover-intro .cover-arrow{animation:arisArrowReveal 700ms 650ms cubic-bezier
     linear-gradient(180deg, rgba(8,7,10,.08), rgba(8,7,10,.18) 45%, rgba(8,7,10,.78)),
     var(--aris-cover-image) !important;
   background-position: center var(--aris-cover-position,44%) !important;
-  background-size: var(--aris-cover-zoom,100%) auto !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
   background-repeat: no-repeat !important;
 }
 
