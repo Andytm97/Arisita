@@ -1,385 +1,171 @@
 import { renderTarjeta } from "../src/components/memory-renderer.js";
+import { ADMIN_EMAIL } from "../src/firebase/firebase-config.js";
+import {
+  observarSesion, iniciarSesion, cerrarSesion, usuarioEsAdmin,
+  obtenerTodosLosRecuerdosFirebase, crearIdRecuerdo, guardarRecuerdoFirebase,
+  borrarRecuerdoFirebase, subirArchivoFirebase, subirDataUrlFirebase,
+  guardarPortadaFirebase, obtenerPortadaFirebase, restaurarPortadaFirebase,
+  guardarReencuentroFirebase, obtenerReencuentroFirebase
+} from "../src/firebase/firebase-service.js";
 
-const STORAGE_KEY = "aris-content-draft-v1";
-const COVER_STORAGE_KEY = "aris-cover-image-v1";
-const MAX_IMAGE_EDGE = 1200;
-const JPEG_QUALITY = 0.72;
-const MAX_DATA_URL_LENGTH = 1_250_000;
-
-const FORM_DRAFT_KEY = "aris-editor-form-draft-v1";
-let formDraftTimer;
-
+const MAX_IMAGE_EDGE = 1600;
+const JPEG_QUALITY = .78;
+const loginView = document.getElementById("loginView");
+const adminView = document.getElementById("adminView");
+const loginForm = document.getElementById("loginForm");
 const form = document.getElementById("memoryForm");
 const tipo = document.getElementById("tipo");
-const dynamicFields = document.getElementById("dynamicFields");
-const previewCard = document.getElementById("previewCard");
-const status = document.getElementById("formStatus");
+const fields = document.getElementById("dynamicFields");
+const preview = document.getElementById("previewCard");
+const formStatus = document.getElementById("formStatus");
 const memoryList = document.getElementById("memoryList");
-let baseData;
-let metadataTimer;
+const publishButton = document.getElementById("publishButton");
 let pendingCoverImage = "";
-const coverGalleryInput = document.getElementById("coverGalleryInput");
-const coverCameraInput = document.getElementById("coverCameraInput");
-const coverPreviewImage = document.getElementById("coverPreviewImage");
-const coverStatus = document.getElementById("coverStatus");
-const saveCoverButton = document.getElementById("saveCover");
+let memories = [];
+let editingId = "";
 
-const imagePicker = ({ targetName, label = "Imagen", optional = false }) => `
-  <div class="field media-picker" data-image-picker="${targetName}">
-    <span>${label}${optional ? " (opcional)" : ""}</span>
-    <input type="hidden" name="${targetName}" ${optional ? "" : "required"}>
-    <div class="picker-actions">
-      <button class="secondary-button picker-button" type="button" data-pick-gallery="${targetName}">Elegir de la galería</button>
-      <button class="secondary-button picker-button" type="button" data-pick-camera="${targetName}">Hacer una foto</button>
-    </div>
-    <input class="visually-hidden" type="file" accept="image/*" data-file-gallery="${targetName}">
-    <input class="visually-hidden" type="file" accept="image/*" capture="environment" data-file-camera="${targetName}">
-    <div class="picked-image" data-picked-image="${targetName}" hidden>
-      <img alt="Vista previa de la imagen seleccionada">
-      <button type="button" class="ghost-button" data-clear-image="${targetName}">Quitar imagen</button>
-    </div>
-    <p class="field-hint">La imagen se reduce y comprime automáticamente antes de guardarse.</p>
-  </div>`;
-
-const fieldTemplates = {
-  foto: `${imagePicker({ targetName: "contenido", label: "Fotografía" })}<label class="field"><span>Descripción</span><textarea name="descripcion" placeholder="Lo que quieres contar sobre esta foto"></textarea></label>`,
-  texto: `<label class="field"><span>Texto de la carta</span><textarea name="texto" placeholder="Escribe aquí tu carta…" required></textarea></label><label class="field"><span>Firma</span><input name="firma" placeholder="Siempre contigo"></label>`,
-  video: `<label class="field"><span>Ruta o URL del vídeo</span><input name="contenido" placeholder="assets/media/video.mp4" required></label>${imagePicker({ targetName: "poster", label: "Miniatura", optional: true })}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
-  audio: `<label class="field"><span>Ruta o URL del audio</span><input name="contenido" placeholder="assets/media/nota.m4a" required></label><label class="field"><span>Duración visible</span><input name="duracion" placeholder="0:38"></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
-  spotify: `<label class="field metadata-field"><span>Enlace de Spotify</span><div class="metadata-input-row"><input name="enlace" type="url" inputmode="url" placeholder="https://open.spotify.com/track/…" required><button class="secondary-button metadata-button" type="button" data-fetch-metadata="spotify">Obtener datos</button></div><small data-metadata-status="spotify"></small></label><label class="field"><span>Título de la canción</span><input name="cancionTitulo" placeholder="Se completará automáticamente"></label><label class="field"><span>Artista</span><input name="artista" placeholder="Puedes corregirlo si hace falta"></label>${imagePicker({ targetName: "portada", label: "Carátula", optional: true })}<label class="field"><span>Duración visible</span><input name="duracion" placeholder="3:42"></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
-  youtube: `<label class="field metadata-field"><span>Enlace de YouTube</span><div class="metadata-input-row"><input name="enlace" type="url" inputmode="url" placeholder="https://youtu.be/…" required><button class="secondary-button metadata-button" type="button" data-fetch-metadata="youtube">Obtener datos</button></div><small data-metadata-status="youtube"></small></label><label class="field"><span>Título del vídeo</span><input name="videoTitulo" placeholder="Se completará automáticamente"></label><label class="field"><span>Canal</span><input name="canal" placeholder="Se completará automáticamente"></label>${imagePicker({ targetName: "miniatura", label: "Miniatura", optional: true })}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
-  ubicacion: `<label class="field"><span>Nombre del lugar</span><input name="lugar" placeholder="Madrid · 40.4168° N" required></label><label class="field"><span>Enlace de Maps</span><input name="enlace" type="url" placeholder="https://maps.google.com/?q=…" required></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`
+const mediaInput = (name, label, accept, capture = "") => `<label class="field"><span>${label}</span><input name="${name}" type="file" accept="${accept}" ${capture} required></label>`;
+const imageInput = (name, label, required = true) => `<label class="field"><span>${label}${required ? "" : " (opcional)"}</span><input name="${name}" type="file" accept="image/*" ${required ? "required" : ""}></label>`;
+const templates = {
+  foto: `${imageInput("contenidoArchivo", "Fotografía")}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
+  texto: `<label class="field"><span>Texto de la carta</span><textarea name="texto" required></textarea></label><label class="field"><span>Firma</span><input name="firma" placeholder="Siempre contigo"></label>`,
+  video: `${mediaInput("contenidoArchivo", "Vídeo", "video/*")} ${imageInput("posterArchivo", "Miniatura", false)}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
+  audio: `${mediaInput("contenidoArchivo", "Audio", "audio/*", "capture")}<label class="field"><span>Duración visible</span><input name="duracion" placeholder="0:38"></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
+  spotify: `<label class="field"><span>Enlace de Spotify</span><input name="enlace" type="url" required></label><label class="field"><span>Título de la canción</span><input name="cancionTitulo"></label><label class="field"><span>Artista</span><input name="artista"></label>${imageInput("portadaArchivo", "Carátula", false)}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
+  youtube: `<label class="field"><span>Enlace de YouTube</span><input name="enlace" type="url" required></label><label class="field"><span>Título del vídeo</span><input name="videoTitulo"></label><label class="field"><span>Canal</span><input name="canal"></label>${imageInput("miniaturaArchivo", "Miniatura", false)}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
+  ubicacion: `<label class="field"><span>Nombre del lugar</span><input name="lugar" required></label><label class="field"><span>Enlace de Maps</span><input name="enlace" type="url" required></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`
 };
 
-init();
+document.getElementById("loginEmail").value = ADMIN_EMAIL;
+observarSesion(async user => {
+  const allowed = usuarioEsAdmin(user);
+  loginView.hidden = allowed;
+  adminView.hidden = !allowed;
+  if (allowed) await initialiseAdmin();
+});
 
-async function init(){
-  baseData = await loadBase();
+loginForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const output = document.getElementById("loginStatus");
+  output.textContent = "Entrando…";
+  try { await iniciarSesion(document.getElementById("loginEmail").value.trim(), document.getElementById("loginPassword").value); output.textContent = ""; }
+  catch (error) { output.textContent = friendlyError(error); output.classList.add("is-error"); }
+});
+document.getElementById("logoutButton").addEventListener("click", cerrarSesion);
+
+async function initialiseAdmin() {
   renderFields();
-  setDefaultDate();
-  updatePreview();
-  renderList();
-  tipo.addEventListener("change",()=>{renderFields();updatePreview();});
-  form.addEventListener("input",handleFormInput);
-  form.addEventListener("submit",saveMemory);
-  document.getElementById("previewButton").addEventListener("click",updatePreview);
-  document.getElementById("resetForm").addEventListener("click",()=>{form.reset();setDefaultDate();renderFields();updatePreview();});
-  document.getElementById("exportButton").addEventListener("click",exportJson);
-  document.getElementById("clearDrafts").addEventListener("click",clearDrafts);
-  initCoverEditor();
-}
-
-function initCoverEditor(){
-  const original = baseData?.portada?.contenido || "../assets/fondo.jpg";
-  let saved = "";
-  try { saved = localStorage.getItem(COVER_STORAGE_KEY) || ""; } catch (_) {}
-  pendingCoverImage = saved;
-  setCoverPreview(saved || resolveAdminAsset(original));
-
-  document.getElementById("pickCoverGallery").addEventListener("click",()=>coverGalleryInput.click());
-  document.getElementById("pickCoverCamera").addEventListener("click",()=>coverCameraInput.click());
-  coverGalleryInput.addEventListener("change",handleCoverSelection);
-  coverCameraInput.addEventListener("change",handleCoverSelection);
-  saveCoverButton.addEventListener("click",saveCoverImage);
-  document.getElementById("restoreCover").addEventListener("click",restoreCoverImage);
-}
-
-function resolveAdminAsset(value){
-  if(!value)return "../assets/fondo.jpg";
-  if(/^(data:|https?:|blob:|\/)/i.test(value))return value;
-  return `../${value.replace(/^\.\//,"")}`;
-}
-
-async function handleCoverSelection(event){
-  const file=event.currentTarget.files?.[0];
-  if(!file)return;
-  if(!file.type.startsWith("image/")){setCoverStatus("El archivo seleccionado no es una imagen.",true);return;}
-  setCoverStatus("Preparando la portada…");
-  try{
-    pendingCoverImage=await compressImage(file);
-    setCoverPreview(pendingCoverImage);
-    saveCoverButton.disabled=false;
-    setCoverStatus("Portada preparada. Pulsa Guardar portada para aplicarla.");
-  }catch(error){
-    console.error(error);
-    setCoverStatus("No se pudo procesar la imagen. Prueba con otra fotografía.",true);
-  }finally{event.currentTarget.value="";}
-}
-
-function setCoverPreview(src){
-  coverPreviewImage.src=src || "../assets/fondo.jpg";
-}
-
-function saveCoverImage(){
-  if(!pendingCoverImage)return;
-  try{
-    localStorage.setItem(COVER_STORAGE_KEY,pendingCoverImage);
-    saveCoverButton.disabled=true;
-    setCoverStatus("Portada guardada. Al volver al álbum aparecerá automáticamente.");
-  }catch(error){
-    console.error(error);
-    setCoverStatus("Safari no tiene espacio suficiente para guardar esta portada.",true);
-  }
-}
-
-function restoreCoverImage(){
-  try{localStorage.removeItem(COVER_STORAGE_KEY);}catch(_){}
-  pendingCoverImage="";
-  saveCoverButton.disabled=true;
-  setCoverPreview(resolveAdminAsset(baseData?.portada?.contenido || "assets/fondo.jpg"));
-  setCoverStatus("Se ha restaurado la portada original.");
-}
-
-function setCoverStatus(message,isError=false){
-  coverStatus.textContent=message;
-  coverStatus.classList.toggle("is-error",isError);
-}
-
-async function loadBase(){
-  try{const r=await fetch("../data/contenido.json",{cache:"no-store"});if(r.ok)return await r.json();}catch(_){}
-  return {nombre:"Aris",diasRestantes:82,portada:{titulo:"A PESAR DE LA DISTANCIA...",texto:"Para que nos podamos sentir un poco más cerca.",contenido:"assets/fondo.jpg"},recuerdos:[]};
-}
-
-function renderFields(){
-  dynamicFields.innerHTML=fieldTemplates[tipo.value]||fieldTemplates.texto;
-  wireDynamicFields();
-}
-
-function wireDynamicFields(){
-  dynamicFields.querySelectorAll("[data-pick-gallery]").forEach(button=>button.addEventListener("click",()=>dynamicFields.querySelector(`[data-file-gallery="${button.dataset.pickGallery}"]`)?.click()));
-  dynamicFields.querySelectorAll("[data-pick-camera]").forEach(button=>button.addEventListener("click",()=>dynamicFields.querySelector(`[data-file-camera="${button.dataset.pickCamera}"]`)?.click()));
-  dynamicFields.querySelectorAll("[data-file-gallery],[data-file-camera]").forEach(input=>input.addEventListener("change",handleImageSelection));
-  dynamicFields.querySelectorAll("[data-clear-image]").forEach(button=>button.addEventListener("click",()=>clearSelectedImage(button.dataset.clearImage)));
-  dynamicFields.querySelectorAll("[data-fetch-metadata]").forEach(button=>button.addEventListener("click",()=>fetchMetadata(button.dataset.fetchMetadata)));
-}
-
-function handleFormInput(event){
-  requestAnimationFrame(updatePreview);
-  scheduleFormDraftSave();
-  const linkInput=event.target.closest('input[name="enlace"]');
-  if(!linkInput||!["spotify","youtube"].includes(tipo.value))return;
-  clearTimeout(metadataTimer);
-  metadataTimer=setTimeout(()=>fetchMetadata(tipo.value,{silent:true}),650);
-}
-
-async function handleImageSelection(event){
-  const input=event.currentTarget;
-  const file=input.files?.[0];
-  if(!file)return;
-  if(!file.type.startsWith("image/")){setStatus("El archivo seleccionado no es una imagen.",true);return;}
-  setStatus("Preparando la imagen…");
-  try{
-    const dataUrl=await compressImage(file);
-    const target=input.dataset.fileGallery||input.dataset.fileCamera;
-    setImageValue(target,dataUrl);
-    setStatus("Imagen preparada. Se guardará dentro del recuerdo local.");
-  }catch(error){
-    console.error(error);
-    setStatus("No se pudo procesar la imagen. Prueba con otra fotografía.",true);
-  }finally{input.value="";}
-}
-
-async function compressImage(file){
-  const source=await fileToDataUrl(file);
-  const image=await loadImage(source);
-  let edge=MAX_IMAGE_EDGE;
-  let quality=JPEG_QUALITY;
-  let result="";
-
-  for(let attempt=0;attempt<4;attempt+=1){
-    const scale=Math.min(1,edge/Math.max(image.naturalWidth,image.naturalHeight));
-    const width=Math.max(1,Math.round(image.naturalWidth*scale));
-    const height=Math.max(1,Math.round(image.naturalHeight*scale));
-    const canvas=document.createElement("canvas");
-    canvas.width=width;canvas.height=height;
-    const context=canvas.getContext("2d",{alpha:false});
-    if(!context)throw new Error("Canvas no disponible");
-    context.drawImage(image,0,0,width,height);
-    result=canvas.toDataURL("image/jpeg",quality);
-    if(result.length<=MAX_DATA_URL_LENGTH)return result;
-    edge=Math.round(edge*.78);
-    quality=Math.max(.54,quality-.08);
-  }
-
-  return result;
-}
-
-function fileToDataUrl(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file);});}
-function loadImage(src){return new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=src;});}
-
-function setImageValue(name,value){
-  const hidden=dynamicFields.querySelector(`input[name="${name}"]`);
-  if(hidden)hidden.value=value;
-  const wrapper=dynamicFields.querySelector(`[data-picked-image="${name}"]`);
-  if(wrapper){wrapper.hidden=!value;wrapper.querySelector("img").src=value||"";}
+  document.getElementById("fecha").value ||= new Date().toISOString().slice(0, 10);
+  wireCover();
+  await Promise.all([loadMemories(), loadConfiguration()]);
   updatePreview();
 }
 
-function clearSelectedImage(name){setImageValue(name,"");}
+tipo.addEventListener("change", () => { renderFields(); updatePreview(); });
+form.addEventListener("input", updatePreview);
+form.addEventListener("change", updatePreview);
+form.addEventListener("submit", publishMemory);
+document.getElementById("previewButton").addEventListener("click", updatePreview);
+document.getElementById("resetForm").addEventListener("click", resetForm);
+document.getElementById("refreshMemories").addEventListener("click", loadMemories);
 
-async function fetchMetadata(provider,{silent=false}={}){
-  const url=String(form.elements.enlace?.value||"").trim();
-  if(!url)return;
-  const metadataStatus=dynamicFields.querySelector(`[data-metadata-status="${provider}"]`);
-  if(metadataStatus&&!silent)metadataStatus.textContent="Buscando información…";
-  try{
-    if(provider==="spotify")await fillSpotifyMetadata(url);
-    if(provider==="youtube")await fillYouTubeMetadata(url);
-    if(metadataStatus)metadataStatus.textContent="Información añadida automáticamente. Puedes editarla.";
-    updatePreview();
-  }catch(error){
-    console.warn(error);
-    if(metadataStatus)metadataStatus.textContent="No se pudo obtener todo automáticamente. Puedes completarlo a mano.";
-    if(!silent)setStatus("No he podido leer ese enlace automáticamente; los campos siguen siendo editables.",true);
-  }
-}
-
-async function fillSpotifyMetadata(url){
-  if(!/spotify\.(com|link)/i.test(url))throw new Error("Enlace de Spotify no reconocido");
-  const endpoint=`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`;
-  const response=await fetch(endpoint);
-  if(!response.ok)throw new Error("Spotify oEmbed no disponible");
-  const data=await response.json();
-  const rawTitle=String(data.title||"").replace(/\s*\|\s*Spotify\s*$/i,"").trim();
-  const parsed=parseSpotifyTitle(rawTitle);
-  setNamedValue("cancionTitulo",parsed.title||rawTitle);
-  if(parsed.artist)setNamedValue("artista",parsed.artist);
-  if(data.thumbnail_url)setImageValue("portada",data.thumbnail_url);
-  if(!form.elements.titulo.value&&rawTitle)form.elements.titulo.value=parsed.title||rawTitle;
-}
-
-function parseSpotifyTitle(title){
-  const patterns=[
-    /^(.*?)\s+-\s+song and lyrics by\s+(.+)$/i,
-    /^(.*?)\s+by\s+(.+)$/i,
-    /^(.*?)\s+•\s+(.+)$/
-  ];
-  for(const pattern of patterns){const match=title.match(pattern);if(match)return{title:match[1].trim(),artist:match[2].trim()};}
-  return{title,artist:""};
-}
-
-async function fillYouTubeMetadata(url){
-  const videoId=getYouTubeId(url);
-  if(!videoId)throw new Error("Enlace de YouTube no reconocido");
-  let data={};
-  try{
-    const endpoint=`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-    const response=await fetch(endpoint);
-    if(response.ok)data=await response.json();
-  }catch(_){}
-  setNamedValue("videoTitulo",data.title||"");
-  setNamedValue("canal",data.author_name||"");
-  setImageValue("miniatura",data.thumbnail_url||`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`);
-  if(!form.elements.titulo.value&&data.title)form.elements.titulo.value=data.title;
-}
-
-function getYouTubeId(value){
-  try{
-    const url=new URL(value);
-    if(url.hostname.includes("youtu.be"))return url.pathname.split("/").filter(Boolean)[0]||"";
-    if(url.pathname.startsWith("/shorts/"))return url.pathname.split("/")[2]||"";
-    if(url.pathname.startsWith("/embed/"))return url.pathname.split("/")[2]||"";
-    return url.searchParams.get("v")||"";
-  }catch(_){return"";}
-}
-
-function setNamedValue(name,value){const field=form.elements[name];if(field&&value)field.value=value;}
-function setDefaultDate(){document.getElementById("fecha").value ||= new Date().toISOString().slice(0,10);}
-
-function formPage(){
-  const fd=new FormData(form);
-  const t=fd.get("tipo");
-  const title=String(fd.get("titulo")||"Hoy quería enseñarte algo");
-  const page={tipo:t,fecha:formatDate(fd.get("fecha")),titulo:title,etiqueta:labelFor(t),descripcion:String(fd.get("descripcion")||"")};
-  const excluded=new Set(["fecha","titulo","tipo","destacado","artista","cancionTitulo","videoTitulo","canal"]);
-  for(const [key,value] of fd.entries())if(!excluded.has(key)&&typeof value==="string"&&value)page[key]=value;
-  if(t==="texto")page.texto=String(fd.get("texto")||title);
-  if(t==="spotify")page.cancion={titulo:String(fd.get("cancionTitulo")||title),artista:String(fd.get("artista")||"Nuestra playlist")};
-  if(t==="youtube"){
-    page.titulo=String(fd.get("videoTitulo")||title);
-    page.canal=String(fd.get("canal")||"");
-  }
+function renderFields() { fields.innerHTML = templates[tipo.value] || templates.texto; }
+function pageFromForm() {
+  const fd = new FormData(form);
+  const kind = String(fd.get("tipo"));
+  const title = String(fd.get("titulo") || "Hoy quería enseñarte algo");
+  const page = { tipo: kind, fecha: formatDate(fd.get("fecha")), titulo: title, etiqueta: labelFor(kind), descripcion: String(fd.get("descripcion") || "") };
+  ["texto", "firma", "duracion", "enlace", "lugar"].forEach(key => { const value = fd.get(key); if (typeof value === "string" && value) page[key] = value; });
+  if (kind === "spotify") page.cancion = { titulo: String(fd.get("cancionTitulo") || title), artista: String(fd.get("artista") || "Nuestra playlist") };
+  if (kind === "youtube") { page.titulo = String(fd.get("videoTitulo") || title); page.canal = String(fd.get("canal") || ""); }
   return page;
 }
+function updatePreview() { preview.innerHTML = renderTarjeta(pageFromForm()); }
 
-function updatePreview(){previewCard.innerHTML=renderTarjeta(formPage());}
-
-function saveMemory(event){
+async function publishMemory(event) {
   event.preventDefault();
-  if(!form.reportValidity())return;
-  const page=formPage();
-  const drafts=getDrafts();
-  const id=`recuerdo-local-${Date.now()}`;
-  drafts.push({id,fecha:page.fecha,titulo:page.titulo,destacado:document.getElementById("destacado").checked,elementos:[{...page,id:`${id}-elemento-1`,fecha:undefined}]});
-  const next={version:2,recuerdos:drafts};
-  try{
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(next));
-    setStatus("Recuerdo guardado y disponible en el álbum de este dispositivo.");
-    renderList();
-  }catch(error){
-    console.error(error);
-    setStatus("El navegador no tiene espacio suficiente. Exporta el JSON o utiliza imágenes más pequeñas; Firebase eliminará este límite.",true);
-  }
+  if (!form.reportValidity()) return;
+  publishButton.disabled = true;
+  setStatus("Subiendo archivos…");
+  try {
+    const id = editingId || crearIdRecuerdo();
+    const fd = new FormData(form);
+    const existing = memories.find(memory => memory.id === editingId);
+    const page = { ...(existing?.elementos?.[0] || {}), ...pageFromForm() };
+    const uploadMap = { contenidoArchivo: "contenido", posterArchivo: "poster", portadaArchivo: "portada", miniaturaArchivo: "miniatura" };
+    for (const [inputName, target] of Object.entries(uploadMap)) {
+      const file = fd.get(inputName);
+      if (!(file instanceof File) || !file.size) continue;
+      if (file.type.startsWith("image/")) {
+        const dataUrl = await compressImage(file);
+        page[target] = await subirDataUrlFirebase({ recuerdoId: id, campo: target, dataUrl });
+      } else page[target] = await subirArchivoFirebase({ recuerdoId: id, campo: target, archivo: file });
+    }
+    const rawDate = String(fd.get("fecha") || "");
+    await guardarRecuerdoFirebase({ ...(existing || {}), id, fecha: formatDate(rawDate), fechaISO: rawDate, titulo: String(fd.get("titulo")), destacado: fd.get("destacado") === "on", elementos: [{ ...page, id: `${id}-elemento-1`, fecha: undefined }] });
+    setStatus(editingId ? "Recuerdo actualizado en el álbum." : "Recuerdo publicado. Ya está disponible en el álbum.");
+    resetForm(false);
+    await loadMemories();
+  } catch (error) { console.error(error); setStatus(friendlyError(error), true); }
+  finally { publishButton.disabled = false; }
 }
 
-function getSaved(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"null");}catch(_){return null;}}
-function getDrafts(){
-  const saved=getSaved();
-  if(!saved?.recuerdos)return[];
-  if(saved.version===2)return saved.recuerdos;
-  const baseCount=(baseData.recuerdos||[]).length;
-  return saved.recuerdos.slice(baseCount);
+async function loadMemories() {
+  memoryList.innerHTML = '<div class="empty-state">Cargando recuerdos…</div>';
+  try { memories = await obtenerTodosLosRecuerdosFirebase(); renderList(); }
+  catch (error) { memoryList.innerHTML = `<div class="empty-state">${escapeHtml(friendlyError(error))}</div>`; }
+}
+function renderList() {
+  if (!memories.length) { memoryList.innerHTML = '<div class="empty-state">Todavía no hay recuerdos publicados.</div>'; return; }
+  memoryList.innerHTML = memories.map(memory => `<article class="memory-row"><div><h3>${escapeHtml(memory.titulo)}</h3><p>${escapeHtml(memory.fecha)} · ${escapeHtml(labelFor(memory.elementos?.[0]?.tipo))}</p></div><div class="row-actions"><button class="icon-button" data-preview="${memory.id}" aria-label="Previsualizar">◉</button><button class="icon-button" data-edit="${memory.id}" aria-label="Editar">✎</button><button class="icon-button" data-delete="${memory.id}" aria-label="Eliminar">×</button></div></article>`).join("");
+  memoryList.querySelectorAll("[data-preview]").forEach(button => button.addEventListener("click", () => { const item = memories.find(memory => memory.id === button.dataset.preview); if (item) preview.innerHTML = renderTarjeta({ ...item.elementos?.[0], fecha: item.fecha, titulo: item.titulo }); window.scrollTo({ top: 0, behavior: "smooth" }); }));
+  memoryList.querySelectorAll("[data-edit]").forEach(button => button.addEventListener("click", () => editMemory(button.dataset.edit)));
+  memoryList.querySelectorAll("[data-delete]").forEach(button => button.addEventListener("click", async () => { if (!confirm("¿Eliminar este recuerdo definitivamente?")) return; try { await borrarRecuerdoFirebase(button.dataset.delete); await loadMemories(); setStatus("Recuerdo eliminado."); } catch (error) { setStatus(friendlyError(error), true); } }));
 }
 
-function renderList(){
-  const drafts=getDrafts();
-  if(!drafts.length){memoryList.innerHTML='<div class="empty-state">Todavía no has preparado ningún recuerdo local.</div>';return;}
-  memoryList.innerHTML=drafts.map((memory,index)=>`<article class="memory-row"><div><h3>${escapeHtml(memory.titulo)}</h3><p>${escapeHtml(memory.fecha)} · ${escapeHtml(labelFor(memory.elementos?.[0]?.tipo))}</p></div><div class="row-actions"><button class="icon-button" data-preview="${index}" aria-label="Previsualizar">◉</button><button class="icon-button" data-delete="${index}" aria-label="Eliminar">×</button></div></article>`).join("");
-  memoryList.querySelectorAll("[data-preview]").forEach(button=>button.addEventListener("click",()=>{const memory=drafts[+button.dataset.preview];previewCard.innerHTML=renderTarjeta({...memory.elementos[0],fecha:memory.fecha,titulo:memory.titulo});window.scrollTo({top:0,behavior:"smooth"});}));
-  memoryList.querySelectorAll("[data-delete]").forEach(button=>button.addEventListener("click",()=>deleteDraft(+button.dataset.delete)));
-}
-
-function deleteDraft(index){const drafts=getDrafts();drafts.splice(index,1);localStorage.setItem(STORAGE_KEY,JSON.stringify({version:2,recuerdos:drafts}));renderList();setStatus("Borrador eliminado.");}
-function clearDrafts(){if(!confirm("¿Borrar todos los recuerdos locales?"))return;localStorage.removeItem(STORAGE_KEY);renderList();setStatus("Borradores locales eliminados.");}
-function exportJson(){const drafts=getDrafts();const content={...baseData,recuerdos:[...(baseData.recuerdos||[]),...drafts]};const blob=new Blob([JSON.stringify(content,null,2)],{type:"application/json"});const anchor=document.createElement("a");anchor.href=URL.createObjectURL(blob);anchor.download="contenido-aris.json";anchor.click();URL.revokeObjectURL(anchor.href);}
-function formatDate(value){if(!value)return"";return new Intl.DateTimeFormat("es-ES",{day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${value}T00:00:00Z`));}
-function labelFor(value){return({foto:"Fotografía",texto:"Carta",video:"Vídeo",audio:"Nota de voz",spotify:"Spotify",youtube:"YouTube",ubicacion:"Lugar"})[value]||"Recuerdo";}
-function escapeHtml(value){return String(value||"").replace(/[&<>'"]/g,character=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[character]);}
-function setStatus(message,isError=false){status.textContent=message;status.classList.toggle("is-error",isError);}
-
-
-function serializarBorradorFormulario() {
-  const values = {};
-  new FormData(form).forEach((value, key) => {
-    if (typeof value === "string") values[key] = value;
-  });
-  return { tipo: tipo.value, values, savedAt: Date.now() };
-}
-
-function scheduleFormDraftSave() {
-  clearTimeout(formDraftTimer);
-  formDraftTimer = setTimeout(() => {
-    try { localStorage.setItem(FORM_DRAFT_KEY, JSON.stringify(serializarBorradorFormulario())); } catch (_) {}
-  }, 300);
-}
-
-function restaurarBorradorFormulario() {
-  let draft;
-  try { draft = JSON.parse(localStorage.getItem(FORM_DRAFT_KEY) || "null"); } catch (_) { return; }
-  if (!draft?.values) return;
-  if (draft.tipo && fieldTemplates[draft.tipo]) {
-    tipo.value = draft.tipo;
-    renderFields();
-  }
-  for (const [name, value] of Object.entries(draft.values)) {
-    const field = form.elements[name];
-    if (!field || !value) continue;
-    if (field.type === "checkbox") field.checked = value === "on";
-    else field.value = value;
-    if (["contenido", "portada", "miniatura", "poster"].includes(name)) setImageValue(name, value);
-  }
+function editMemory(id) {
+  const memory = memories.find(item => item.id === id);
+  if (!memory) return;
+  editingId = id;
+  const page = memory.elementos?.[0] || {};
+  tipo.value = page.tipo || "texto";
+  renderFields();
+  document.getElementById("fecha").value = memory.fechaISO || "";
+  document.getElementById("titulo").value = memory.titulo || "";
+  document.getElementById("destacado").checked = Boolean(memory.destacado);
+  const values = { ...page, cancionTitulo: page.cancion?.titulo, artista: page.cancion?.artista, videoTitulo: page.titulo };
+  Object.entries(values).forEach(([name, value]) => { const field = form.elements[name]; if (field && typeof value === "string" && field.type !== "file") field.value = value; });
+  fields.querySelectorAll('input[type="file"][required]').forEach(input => input.required = false);
+  publishButton.textContent = "Guardar cambios";
   updatePreview();
-  setStatus("He recuperado el recuerdo que estabas preparando.");
+  setStatus("Editando un recuerdo publicado. Los archivos actuales se conservarán si no eliges otros.");
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-window.addEventListener("load", () => window.setTimeout(restaurarBorradorFormulario, 80));
+let coverWired = false;
+function wireCover() {
+  if (coverWired) return; coverWired = true;
+  const gallery = document.getElementById("coverGalleryInput"); const camera = document.getElementById("coverCameraInput");
+  document.getElementById("pickCoverGallery").addEventListener("click", () => gallery.click());
+  document.getElementById("pickCoverCamera").addEventListener("click", () => camera.click());
+  gallery.addEventListener("change", selectCover); camera.addEventListener("change", selectCover);
+  document.getElementById("saveCover").addEventListener("click", publishCover);
+  document.getElementById("restoreCover").addEventListener("click", restoreCover);
+  document.getElementById("saveReunion").addEventListener("click", saveReunion);
+}
+async function selectCover(event) { const file = event.target.files?.[0]; if (!file) return; try { pendingCoverImage = await compressImage(file); document.getElementById("coverPreviewImage").src = pendingCoverImage; document.getElementById("saveCover").disabled = false; setCoverStatus("Portada preparada."); } catch (error) { setCoverStatus(friendlyError(error), true); } event.target.value = ""; }
+async function publishCover() { if (!pendingCoverImage) return; const button = document.getElementById("saveCover"); button.disabled = true; setCoverStatus("Publicando portada…"); try { const url = await guardarPortadaFirebase(pendingCoverImage); document.getElementById("coverPreviewImage").src = url; pendingCoverImage = ""; setCoverStatus("Portada publicada para todos los dispositivos."); } catch (error) { button.disabled = false; setCoverStatus(friendlyError(error), true); } }
+async function restoreCover() { if (!confirm("¿Restaurar la portada original?")) return; try { await restaurarPortadaFirebase(); document.getElementById("coverPreviewImage").src = "../assets/fondo.jpg"; setCoverStatus("Portada original restaurada."); } catch (error) { setCoverStatus(friendlyError(error), true); } }
+async function loadConfiguration() { try { const [cover, reunion] = await Promise.all([obtenerPortadaFirebase(), obtenerReencuentroFirebase()]); document.getElementById("coverPreviewImage").src = cover?.contenido || "../assets/fondo.jpg"; document.getElementById("reunionDate").value = reunion?.fecha || "2026-10-09"; } catch (error) { setCoverStatus(friendlyError(error), true); } }
+async function saveReunion() { const value = document.getElementById("reunionDate").value; const output = document.getElementById("reunionStatus"); if (!value) { output.textContent = "Elige una fecha."; return; } output.textContent = "Guardando…"; try { await guardarReencuentroFirebase(value); output.textContent = "Fecha actualizada en el álbum."; } catch (error) { output.textContent = friendlyError(error); output.classList.add("is-error"); } }
+
+function resetForm(clearStatus = true) { editingId = ""; publishButton.textContent = "Publicar recuerdo"; form.reset(); document.getElementById("fecha").value = new Date().toISOString().slice(0, 10); renderFields(); updatePreview(); if (clearStatus) setStatus(""); }
+function formatDate(value) { if (!value) return ""; return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`)); }
+function labelFor(value) { return ({ foto: "Fotografía", texto: "Carta", video: "Vídeo", audio: "Nota de voz", spotify: "Spotify", youtube: "YouTube", ubicacion: "Lugar" })[value] || "Recuerdo"; }
+function setStatus(message, error = false) { formStatus.textContent = message; formStatus.classList.toggle("is-error", error); }
+function setCoverStatus(message, error = false) { const output = document.getElementById("coverStatus"); output.textContent = message; output.classList.toggle("is-error", error); }
+function escapeHtml(value) { return String(value || "").replace(/[&<>'"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]); }
+function friendlyError(error) { const code = String(error?.code || ""); if (code.includes("invalid-credential")) return "Correo o contraseña incorrectos."; if (code.includes("too-many-requests")) return "Demasiados intentos. Espera unos minutos."; if (code.includes("unauthorized") || code.includes("permission-denied")) return "Firebase ha rechazado la operación. Revisa las reglas publicadas."; if (code.includes("storage/unauthorized")) return "Storage ha rechazado la subida. Revisa sus reglas."; return error?.message || "No se pudo completar la operación."; }
+async function compressImage(file) { const source = await fileToDataUrl(file); const image = await loadImage(source); const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.naturalWidth, image.naturalHeight)); const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale)); const context = canvas.getContext("2d", { alpha: false }); context.drawImage(image, 0, 0, canvas.width, canvas.height); return canvas.toDataURL("image/jpeg", JPEG_QUALITY); }
+function fileToDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); }); }
+function loadImage(src) { return new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = src; }); }

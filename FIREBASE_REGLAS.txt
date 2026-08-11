@@ -1,0 +1,27 @@
+FIRESTORE DATABASE → REGLAS
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /recuerdos/{document} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == "KSYoyWiYB4dChzlwVFAaWIyN0YJ3";
+    }
+    match /configuracion/{document} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == "KSYoyWiYB4dChzlwVFAaWIyN0YJ3";
+    }
+  }
+}
+
+FIREBASE STORAGE → REGLAS
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /aris/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == "KSYoyWiYB4dChzlwVFAaWIyN0YJ3";
+    }
+  }
+}

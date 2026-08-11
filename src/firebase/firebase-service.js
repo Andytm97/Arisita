@@ -134,3 +134,13 @@ export async function restaurarPortadaFirebase() {
   if (!usuarioEsAdmin()) throw new Error("No autorizado.");
   await deleteDoc(doc(db, "configuracion", "portada"));
 }
+
+export async function guardarReencuentroFirebase(fecha) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  await setDoc(doc(db, "configuracion", "reencuentro"), { fecha, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function obtenerReencuentroFirebase() {
+  const snapshot = await getDoc(doc(db, "configuracion", "reencuentro"));
+  return snapshot.exists() ? snapshot.data() : null;
+}

@@ -2,7 +2,7 @@ import { DEMO_DATA } from "./data/demo-data.js";
 import { normalizarContenido } from "./core/content-model.js";
 import { escapar, atributoSeguro, suavizarProgreso, formatearTiempo } from "./core/utils.js";
 import { renderTarjeta } from "./components/memory-renderer.js";
-import { obtenerRecuerdosFirebase, obtenerPortadaFirebase } from "./firebase/firebase-service.js";
+import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase } from "./firebase/firebase-service.js";
 
 let data = DEMO_DATA;
 let paginas = [];
@@ -25,8 +25,8 @@ const indicadores = document.getElementById("indicadores");
 const numeroPagina = document.getElementById("numeroPagina");
 const textoGesto = document.getElementById("textoGesto");
 const background = document.getElementById("background");
-const COVER_STORAGE_KEY = "aris-cover-image-v1";
 const album = document.querySelector(".album");
+let fechaReencuentro = "2026-10-09";
 
 iniciar().catch((error) => {
   console.error("ARIS no pudo iniciar con los datos guardados.", error);
@@ -35,43 +35,32 @@ iniciar().catch((error) => {
 });
 
 async function iniciar() {
-  let baseRemota = DEMO_DATA;
-  try {
-    const respuesta = await fetch("data/contenido.json", { cache: "no-store" });
-    if (!respuesta.ok) throw new Error("No se pudo cargar contenido.json");
-    baseRemota = await respuesta.json();
-  } catch (error) {
-    console.info("Se usa el contenido de demostración incluido en la aplicación.");
-  }
-
-  const baseNormalizada = normalizarContenido(baseRemota, DEMO_DATA);
   let recuerdosFirebase = [];
   let portadaFirebase = null;
+  let reencuentroFirebase = null;
 
   try {
-    [recuerdosFirebase, portadaFirebase] = await Promise.all([
+    [recuerdosFirebase, portadaFirebase, reencuentroFirebase] = await Promise.all([
       obtenerRecuerdosFirebase(),
-      obtenerPortadaFirebase()
+      obtenerPortadaFirebase(),
+      obtenerReencuentroFirebase()
     ]);
   } catch (error) {
-    console.warn("Firebase no está disponible; ARIS continúa con el contenido incluido.", error);
+    console.warn("Firebase no está disponible; ARIS mostrará el álbum vacío.", error);
   }
 
-  const porId = new Map(baseNormalizada.recuerdos.map(recuerdo => [recuerdo.id, recuerdo]));
-  recuerdosFirebase.forEach(recuerdo => porId.set(recuerdo.id, recuerdo));
+  fechaReencuentro = reencuentroFirebase?.fecha || fechaReencuentro;
 
   data = normalizarContenido({
-    ...baseRemota,
+    ...DEMO_DATA,
     portada: portadaFirebase?.contenido
-      ? { ...(baseRemota.portada || {}), contenido: portadaFirebase.contenido }
-      : baseRemota.portada,
-    recuerdos: [...porId.values()]
+      ? { ...DEMO_DATA.portada, contenido: portadaFirebase.contenido }
+      : DEMO_DATA.portada,
+    recuerdos: recuerdosFirebase
   }, DEMO_DATA);
 
   prepararAplicacion(data);
 }
-
-const FECHA_REENCUENTRO = new Date(2026, 9, 9);
 
 function actualizarCuentaAtras() {
   const pie = document.getElementById("cuentaAtras");
@@ -79,7 +68,8 @@ function actualizarCuentaAtras() {
 
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
-  const destino = new Date(FECHA_REENCUENTRO);
+  const [year, month, day] = fechaReencuentro.split("-").map(Number);
+  const destino = new Date(year, month - 1, day);
   destino.setHours(0, 0, 0, 0);
   const dias = Math.ceil((destino - hoy) / 86400000);
 

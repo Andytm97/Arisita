@@ -1,9 +1,9 @@
-const CACHE_NAME = "aris-v1-firebase-20260805-v3-portada-fix";
+const CACHE_NAME = "aris-v2-firebase-20260811-v1";
 const CORE = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./src/app.js", "./src/firebase/firebase-config.js", "./src/firebase/firebase-service.js", "./src/core/utils.js", "./src/core/content-model.js",
   "./src/components/memory-renderer.js", "./src/data/demo-data.js",
-  "./data/contenido.json", "./assets/fondo.jpg", "./assets/favicon.svg",
+  "./assets/fondo.jpg", "./assets/favicon.svg",
   "./assets/icons/icon-192.png", "./assets/icons/icon-512.png",
   "./admin/", "./admin/index.html", "./admin/admin.css", "./admin/admin.js"
 ];
