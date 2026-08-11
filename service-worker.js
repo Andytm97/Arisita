@@ -1,4 +1,4 @@
-const CACHE_NAME = "aris-v2-firebase-20260811-v5";
+const CACHE_NAME = "aris-v2-firebase-20260811-v6";
 const CORE = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./src/app.js", "./src/firebase/firebase-config.js", "./src/firebase/firebase-service.js", "./src/core/utils.js", "./src/core/content-model.js",

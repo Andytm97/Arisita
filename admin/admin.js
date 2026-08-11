@@ -1,7 +1,7 @@
 import { renderTarjeta } from "../src/components/memory-renderer.js";
 import { ADMIN_EMAIL } from "../src/firebase/firebase-config.js";
 import {
-  observarSesion, iniciarSesion, cerrarSesion, usuarioEsAdmin,
+  observarSesion, iniciarSesion, cerrarSesion, usuarioEsAdmin, prepararPersistenciaAuth,
   obtenerTodosLosRecuerdosFirebase, crearIdRecuerdo, guardarRecuerdoFirebase,
   borrarRecuerdoFirebase, subirArchivoFirebase, subirDataUrlFirebase,
   guardarPortadaFirebase, obtenerPortadaFirebase, restaurarPortadaFirebase,
@@ -23,6 +23,7 @@ const publishButton = document.getElementById("publishButton");
 let pendingCoverImage = "";
 let memories = [];
 let editingId = "";
+let previewMedia = {};
 
 const mediaInput = (name, label, accept, capture = "") => `<label class="field"><span>${label}</span><input name="${name}" type="file" accept="${accept}" ${capture} required></label>`;
 const imageInput = (name, label, required = true) => `<label class="field"><span>${label}${required ? "" : " (opcional)"}</span><input name="${name}" type="file" accept="image/*" ${required ? "required" : ""}></label>`;
@@ -37,6 +38,7 @@ const templates = {
 };
 
 document.getElementById("loginEmail").value = ADMIN_EMAIL;
+try { await prepararPersistenciaAuth(); } catch (error) { console.warn("No se pudo fijar la persistencia de sesión.", error); }
 observarSesion(async user => {
   const allowed = usuarioEsAdmin(user);
   loginView.hidden = allowed;
@@ -69,12 +71,28 @@ document.getElementById("previewButton").addEventListener("click", updatePreview
 document.getElementById("resetForm").addEventListener("click", resetForm);
 document.getElementById("refreshMemories").addEventListener("click", loadMemories);
 
-function renderFields() { fields.innerHTML = templates[tipo.value] || templates.texto; }
+function renderFields() { clearPreviewMedia(); fields.innerHTML = templates[tipo.value] || templates.texto; wireFilePreviews(); }
+function wireFilePreviews() {
+  fields.querySelectorAll('input[type="file"]').forEach(input => input.addEventListener("change", () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const target = ({ contenidoArchivo: "contenido", posterArchivo: "poster", portadaArchivo: "portada", miniaturaArchivo: "miniatura" })[input.name];
+    if (!target) return;
+    if (previewMedia[target]?.startsWith("blob:")) URL.revokeObjectURL(previewMedia[target]);
+    previewMedia[target] = URL.createObjectURL(file);
+    updatePreview();
+  }));
+}
+function clearPreviewMedia() {
+  Object.values(previewMedia).forEach(value => { if (String(value).startsWith("blob:")) URL.revokeObjectURL(value); });
+  previewMedia = {};
+}
 function pageFromForm() {
   const fd = new FormData(form);
   const kind = String(fd.get("tipo"));
   const title = String(fd.get("titulo") || "Hoy quería enseñarte algo");
-  const page = { tipo: kind, fecha: formatDate(fd.get("fecha")), titulo: title, etiqueta: labelFor(kind), descripcion: String(fd.get("descripcion") || "") };
+  const existing = memories.find(memory => memory.id === editingId)?.elementos?.[0] || {};
+  const page = { ...existing, tipo: kind, fecha: formatDate(fd.get("fecha")), titulo: title, etiqueta: labelFor(kind), descripcion: String(fd.get("descripcion") || ""), ...previewMedia };
   ["texto", "firma", "duracion", "enlace", "lugar"].forEach(key => { const value = fd.get(key); if (typeof value === "string" && value) page[key] = value; });
   if (kind === "spotify") page.cancion = { titulo: String(fd.get("cancionTitulo") || title), artista: String(fd.get("artista") || "Nuestra playlist") };
   if (kind === "youtube") { page.titulo = String(fd.get("videoTitulo") || title); page.canal = String(fd.get("canal") || ""); }
@@ -132,6 +150,7 @@ function editMemory(id) {
   const page = memory.elementos?.[0] || {};
   tipo.value = page.tipo || "texto";
   renderFields();
+  previewMedia = Object.fromEntries(["contenido", "poster", "portada", "miniatura"].filter(key => page[key]).map(key => [key, page[key]]));
   document.getElementById("fecha").value = memory.fechaISO || "";
   document.getElementById("titulo").value = memory.titulo || "";
   document.getElementById("destacado").checked = Boolean(memory.destacado);

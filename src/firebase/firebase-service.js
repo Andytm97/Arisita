@@ -1,6 +1,8 @@
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import {
   getAuth,
+  setPersistence,
+  browserLocalPersistence,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut
@@ -29,6 +31,10 @@ const app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
 export const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+
+export function prepararPersistenciaAuth() {
+  return setPersistence(auth, browserLocalPersistence);
+}
 
 export function observarSesion(callback) {
   return onAuthStateChanged(auth, callback);
