@@ -39,15 +39,29 @@ function revelarAplicacion() {
   requestAnimationFrame(() => document.body.classList.remove("app-loading"));
 }
 
+function precargarImagen(src) {
+  if (!src) return Promise.resolve();
+  return new Promise(resolve => {
+    const image = new Image();
+    image.onload = resolve;
+    image.onerror = resolve;
+    image.src = src;
+  });
+}
+
 async function iniciar() {
   let recuerdosFirebase = [];
   let portadaFirebase = null;
   let reencuentroFirebase = null;
 
   try {
+    const portadaLista = obtenerPortadaFirebase().then(async portada => {
+      await precargarImagen(portada?.contenido);
+      return portada;
+    });
     [recuerdosFirebase, portadaFirebase, reencuentroFirebase] = await Promise.all([
       obtenerRecuerdosFirebase(),
-      obtenerPortadaFirebase(),
+      portadaLista,
       obtenerReencuentroFirebase()
     ]);
   } catch (error) {
