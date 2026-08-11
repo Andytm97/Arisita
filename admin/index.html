@@ -1,76 +1,31 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0d0c0f">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-title" content="ARIS Admin">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>ARIS Admin</title>
-  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css">
-  <link rel="stylesheet" href="admin.css">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#0d0c0f">
+  <meta name="apple-mobile-web-app-title" content="ARIS Admin"><meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png">
+  <title>ARIS Admin</title><link rel="icon" href="../assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="admin.css">
 </head>
 <body class="admin-page">
-  <section id="loginView" class="auth-view">
-    <form id="loginForm" class="auth-card">
-      <p class="admin-eyebrow">ARIS · TU CUADERNO</p>
-      <h1>Entrar en ARIS</h1>
-      <label class="field"><span>Correo</span><input id="loginEmail" type="email" autocomplete="username" required></label>
-      <label class="field"><span>Contraseña</span><input id="loginPassword" type="password" autocomplete="current-password" required></label>
-      <button class="primary-button" type="submit">Entrar</button>
-      <p id="loginStatus" class="form-status" aria-live="polite"></p>
-    </form>
-  </section>
+  <section id="loginView" class="auth-view"><form id="loginForm" class="auth-card"><p class="admin-eyebrow">ARIS · TU CUADERNO</p><h1>Entrar en ARIS</h1><label class="field"><span>Correo</span><input id="loginEmail" type="email" autocomplete="username" required></label><label class="field"><span>Contraseña</span><input id="loginPassword" type="password" autocomplete="current-password" required></label><button class="primary-button" type="submit">Entrar</button><p id="loginStatus" class="form-status" aria-live="polite"></p></form></section>
 
   <main id="adminView" class="admin-app" hidden>
-    <header class="admin-topbar">
-      <div><p class="admin-eyebrow">ARIS · TU CUADERNO</p><h1>Preparar un recuerdo</h1></div>
-      <div class="topbar-actions"><a class="admin-link" href="../index.html" target="_blank" rel="noopener">Ver álbum</a><button id="logoutButton" class="ghost-button" type="button">Salir</button></div>
-    </header>
+    <header class="admin-topbar"><div><p class="admin-eyebrow">ARIS · ADMIN</p><h1>Todo, a un vistazo</h1></div><div class="topbar-actions"><span id="connectionStatus" class="connection-status"><i></i><span>Conectando…</span></span><a class="admin-link" href="../index.html" target="_blank" rel="noopener">Ver álbum</a><button id="logoutButton" class="ghost-button" type="button">Salir</button></div></header>
+    <section class="dashboard-summary"><article><strong id="metricPublished">0</strong><span>publicados</span></article><article><strong id="metricScheduled">0</strong><span>programados</span></article><article><strong id="metricDrafts">0</strong><span>borradores</span></article><article><strong id="metricReplies">0</strong><span>notas nuevas</span></article></section>
 
-    <section class="admin-grid">
-      <form id="memoryForm" class="editor-panel" novalidate>
-        <div class="panel-heading"><div><p class="step-label">NUEVO RECUERDO</p><h2>¿Qué quieres contarle hoy?</h2></div><button id="resetForm" class="ghost-button" type="button">Limpiar</button></div>
-        <label class="field"><span>Fecha</span><input id="fecha" name="fecha" type="date" required></label>
-        <label class="field"><span>Título</span><input id="titulo" name="titulo" type="text" maxlength="90" placeholder="Hoy quería enseñarte algo…" required></label>
-        <label class="field"><span>Tipo de contenido</span><select id="tipo" name="tipo"><option value="foto">Fotografía</option><option value="texto">Carta</option><option value="video">Vídeo</option><option value="audio">Nota de voz</option><option value="spotify">Spotify</option><option value="youtube">YouTube</option><option value="ubicacion">Ubicación</option></select></label>
-        <div id="dynamicFields" class="dynamic-fields"></div>
-        <label class="field checkbox-field"><input id="destacado" name="destacado" type="checkbox"><span>Marcar como recuerdo destacado</span></label>
-        <label class="field"><span>Publicación</span><select id="publicationMode" name="publicationMode"><option value="ahora">Publicar ahora</option><option value="programado">Programar para una fecha</option><option value="borrador">Guardar como borrador privado</option></select></label>
-        <div id="scheduleFields" hidden><label class="field"><span>Disponible desde</span><input name="availableAt" type="datetime-local"></label><label class="field"><span>Antes de esa fecha</span><select name="lockMode"><option value="cerrado">Mostrar como regalo cerrado</option><option value="oculto">Ocultarlo completamente</option></select></label></div>
-        <div class="form-actions"><button id="publishButton" class="primary-button" type="submit">Publicar recuerdo</button><button id="previewButton" class="secondary-button" type="button">Actualizar vista previa</button></div>
-        <p id="formStatus" class="form-status" aria-live="polite"></p>
-        <div id="publishProgress" class="publish-progress" hidden><span></span></div>
-      </form>
-      <aside class="preview-panel"><div class="panel-heading"><div><p class="step-label">VISTA PREVIA</p><h2>Así lo verá ella</h2></div></div><div class="preview-stage"><article id="previewCard" class="memory-card memory-card--current admin-preview-card"></article></div></aside>
-    </section>
+    <div class="admin-accordion">
+      <details class="dashboard-section" data-section="create">
+        <summary><span><small>NUEVO</small>Crear publicación</span><em>Escribir, previsualizar y programar</em></summary>
+        <div class="section-content admin-grid"><form id="memoryForm" class="editor-panel" novalidate><div class="panel-heading"><div><p class="step-label">NUEVO RECUERDO</p><h2>¿Qué quieres contarle hoy?</h2></div><button id="resetForm" class="ghost-button" type="button">Limpiar</button></div><label class="field"><span>Fecha</span><input id="fecha" name="fecha" type="date" required></label><label class="field"><span>Título</span><input id="titulo" name="titulo" maxlength="90" required></label><label class="field"><span>Tipo</span><select id="tipo" name="tipo"><option value="foto">Fotografía</option><option value="texto">Carta</option><option value="video">Vídeo</option><option value="audio">Nota de voz</option><option value="spotify">Spotify</option><option value="youtube">YouTube</option><option value="ubicacion">Ubicación</option></select></label><div id="dynamicFields" class="dynamic-fields"></div><label class="field checkbox-field"><input id="destacado" name="destacado" type="checkbox"><span>Recuerdo destacado</span></label><label class="field"><span>Publicación</span><select id="publicationMode" name="publicationMode"><option value="ahora">Publicar ahora</option><option value="programado">Programar</option><option value="borrador">Guardar como borrador</option></select></label><div id="scheduleFields" hidden><label class="field"><span>Disponible desde</span><input name="availableAt" type="datetime-local"></label><label class="field"><span>Antes de esa fecha</span><select name="lockMode"><option value="cerrado">Mostrar regalo cerrado</option><option value="oculto">Ocultar completamente</option></select></label></div><div class="form-actions"><button id="publishButton" class="primary-button" type="submit">Publicar recuerdo</button><button id="previewButton" class="secondary-button" type="button">Vista previa</button></div><p id="formStatus" class="form-status" aria-live="polite"></p><div id="publishProgress" class="publish-progress" hidden><span></span></div></form><aside class="preview-panel"><div class="panel-heading"><div><p class="step-label">VISTA PREVIA</p><h2>Así lo verá Aris</h2></div></div><div class="preview-stage"><article id="previewCard" class="memory-card memory-card--current admin-preview-card"></article></div></aside></div>
+      </details>
 
-    <section class="cover-admin-panel">
-      <div class="panel-heading"><div><p class="step-label">PORTADA</p><h2>Cambiar foto de portada</h2></div><button id="restoreCover" class="ghost-button" type="button">Restaurar original</button></div>
-      <div class="cover-admin-grid">
-        <div class="cover-admin-copy"><p>La nueva imagen se publicará para todos los dispositivos.</p><div class="picker-actions"><button id="pickCoverGallery" class="secondary-button picker-button" type="button">Elegir de la galería</button><button id="pickCoverCamera" class="secondary-button picker-button" type="button">Hacer una foto</button></div><input id="coverGalleryInput" class="visually-hidden" type="file" accept="image/*"><input id="coverCameraInput" class="visually-hidden" type="file" accept="image/*" capture="environment"><button id="saveCover" class="primary-button cover-save-button" type="button" disabled>Publicar portada</button><p id="coverStatus" class="form-status" aria-live="polite"></p><p class="field-hint">La imagen se comprime y se sube a Firebase Storage.</p></div>
-        <div class="cover-admin-preview" aria-label="Vista previa de portada"><img id="coverPreviewImage" alt="Vista previa de la portada"><div class="cover-admin-overlay"><span>A PESAR DE LA DISTANCIA...</span><strong>Un pedacito de nosotros, cada día.</strong></div></div>
-      </div>
-    </section>
+      <details class="dashboard-section" data-section="cover"><summary><span><small>ASPECTO</small>Imagen de fondo</span><em>Cambiar y ajustar la portada</em></summary><div class="section-content cover-admin-grid"><div class="cover-admin-copy"><div class="picker-actions"><button id="pickCoverGallery" class="secondary-button" type="button">Elegir de la galería</button><button id="pickCoverCamera" class="secondary-button" type="button">Hacer una foto</button></div><input id="coverGalleryInput" class="visually-hidden" type="file" accept="image/*"><input id="coverCameraInput" class="visually-hidden" type="file" accept="image/*" capture="environment"><div class="cover-controls"><label class="field"><span>Encuadre vertical</span><input id="coverPosition" type="range" min="0" max="100" value="44"></label><label class="field"><span>Zoom</span><input id="coverZoom" type="range" min="100" max="150" value="100"></label><label class="field"><span>Brillo</span><input id="coverBrightness" type="range" min="45" max="110" value="72"></label><label class="field"><span>Oscurecimiento</span><input id="coverShade" type="range" min="0" max="75" value="22"></label></div><button id="saveCover" class="primary-button cover-save-button" type="button">Guardar fondo</button><button id="restoreCover" class="ghost-button" type="button">Restaurar original</button><p id="coverStatus" class="form-status"></p></div><div class="cover-admin-preview"><img id="coverPreviewImage" alt="Vista previa"><div id="coverPreviewShade" class="cover-admin-shade"></div><div class="cover-admin-overlay"><span>A PESAR DE LA DISTANCIA...</span><strong>Un pedacito de nosotros, cada día.</strong></div></div></div></details>
 
-    <section class="cover-admin-panel reunion-panel">
-      <div class="panel-heading"><div><p class="step-label">PRÓXIMO REENCUENTRO</p><h2>¿Cuándo os volvéis a ver?</h2></div></div>
-      <div class="reunion-controls"><label class="field"><span>Fecha</span><input id="reunionDate" type="date"></label><button id="saveReunion" class="primary-button" type="button">Guardar fecha</button></div>
-      <p id="reunionStatus" class="form-status" aria-live="polite"></p>
-    </section>
-
-    <section class="cover-admin-panel">
-      <div class="panel-heading"><div><p class="step-label">TEXTOS DE ARIS</p><h2>Personalizar el álbum</h2></div></div>
-      <div class="settings-grid"><label class="field"><span>Nombre</span><input id="settingName" value="Aris"></label><label class="field"><span>Lema de portada</span><input id="settingKicker" value="A PESAR DE LA DISTANCIA..."></label><label class="field"><span>Título de portada</span><input id="settingTitle" value="Un pedacito de nosotros, cada día."></label><label class="field"><span>Subtítulo</span><input id="settingSubtitle" value="Para que nos podamos sentir un poco más cerca."></label></div>
-      <button id="saveSettings" class="primary-button" type="button">Guardar textos</button><p id="settingsStatus" class="form-status" aria-live="polite"></p>
-    </section>
-
-    <section class="library-panel"><div class="panel-heading"><div><p class="step-label">PUBLICADOS</p><h2>Recuerdos en ARIS</h2></div><div class="library-actions"><button id="backupButton" class="secondary-button" type="button">Descargar copia</button><button id="refreshMemories" class="secondary-button" type="button">Actualizar</button></div></div><div id="memoryList" class="memory-list"></div><p class="storage-note">Los recuerdos están guardados en Firebase y aparecen en el álbum desde cualquier dispositivo.</p></section>
-    <section class="library-panel"><div class="panel-heading"><div><p class="step-label">RESPUESTAS DE ARIS</p><h2>Corazones y notas</h2></div></div><div id="responseList" class="memory-list"></div></section>
-  </main>
-  <script type="module" src="admin.js"></script>
-</body>
-</html>
+      <details class="dashboard-section" data-section="reunion"><summary><span><small>CUENTA ATRÁS</small>Próximo reencuentro</span><em id="reunionSummary">Elegir fecha</em></summary><div class="section-content reunion-controls"><label class="field"><span>Fecha</span><input id="reunionDate" type="date"></label><button id="saveReunion" class="primary-button" type="button">Guardar fecha</button><p id="reunionStatus" class="form-status"></p></div></details>
+      <details class="dashboard-section" data-section="texts"><summary><span><small>CONTENIDO</small>Textos del álbum</span><em>Portada y nombre</em></summary><div class="section-content"><div class="settings-grid"><label class="field"><span>Nombre</span><input id="settingName"></label><label class="field"><span>Lema</span><input id="settingKicker"></label><label class="field"><span>Título</span><input id="settingTitle"></label><label class="field"><span>Subtítulo</span><input id="settingSubtitle"></label></div><button id="saveSettings" class="primary-button" type="button">Guardar textos</button><p id="settingsStatus" class="form-status"></p></div></details>
+      <details class="dashboard-section" data-section="memories"><summary><span><small>BIBLIOTECA</small>Recuerdos</span><em id="memorySummary">0 elementos</em></summary><div class="section-content"><div class="library-actions"><button id="backupButton" class="secondary-button" type="button">Descargar copia</button><button id="refreshMemories" class="secondary-button" type="button">Actualizar</button></div><div id="memoryList" class="memory-list"></div></div></details>
+      <details class="dashboard-section" data-section="responses"><summary><span><small>ARIS</small>Corazones y notas</span><em id="responseSummary">Sin novedades</em></summary><div class="section-content"><div id="responseList" class="memory-list"></div></div></details>
+      <details class="dashboard-section" data-section="trash"><summary><span><small>SEGURIDAD</small>Papelera e historial</span><em id="trashSummary">Vacía</em></summary><div class="section-content"><p class="storage-note">Los recuerdos permanecen recuperables hasta que elijas eliminarlos definitivamente.</p><div id="trashList" class="memory-list"></div></div></details>
+    </div>
+  </main><script type="module" src="admin.js"></script>
+</body></html>

@@ -1794,12 +1794,24 @@ body:not(.app-loading) .loading-screen {
 body:not(.app-loading) .app {
   transition: opacity 180ms ease;
 }
+body.cover-intro .background{animation:arisCoverFade 1050ms cubic-bezier(.22,1,.36,1) both!important}
+body.cover-intro .background-shade{animation:arisShadeFade 1150ms ease both!important}
+body.cover-intro .cover-kicker{animation:arisCopyFromLeft 760ms 180ms cubic-bezier(.22,1,.36,1) both}
+body.cover-intro .cover-title{animation:arisCopyFromRight 900ms 270ms cubic-bezier(.22,1,.36,1) both}
+body.cover-intro .cover-copy{animation:arisCopyFromLeft 820ms 430ms cubic-bezier(.22,1,.36,1) both}
+body.cover-intro .cover-arrow{animation:arisArrowReveal 700ms 650ms cubic-bezier(.22,1,.36,1) both}
+@keyframes arisCoverFade{from{opacity:0;transform:scale(1.075)}to{opacity:1;transform:scale(1.035)}}
+@keyframes arisShadeFade{from{opacity:0}to{opacity:1}}
+@keyframes arisCopyFromLeft{from{opacity:0;transform:translate3d(-32px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes arisCopyFromRight{from{opacity:0;transform:translate3d(38px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes arisArrowReveal{from{opacity:0;transform:translate3d(0,12px,0) scale(.88)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+@media(prefers-reduced-motion:reduce){body.cover-intro .background,body.cover-intro .background-shade,body.cover-intro .cover-kicker,body.cover-intro .cover-title,body.cover-intro .cover-copy,body.cover-intro .cover-arrow{animation:none!important}}
 .cover-card {
   background-image:
     linear-gradient(180deg, rgba(8,7,10,.08), rgba(8,7,10,.18) 45%, rgba(8,7,10,.78)),
     var(--aris-cover-image) !important;
-  background-position: center 44% !important;
-  background-size: cover !important;
+  background-position: center var(--aris-cover-position,44%) !important;
+  background-size: var(--aris-cover-zoom,100%) auto !important;
   background-repeat: no-repeat !important;
 }
 

@@ -123,6 +123,24 @@ export async function borrarRecuerdoFirebase(id) {
   await deleteDoc(doc(db, "recuerdos", id));
 }
 
+export async function enviarRecuerdoPapeleraFirebase(id) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  await setDoc(doc(db, "recuerdos", id), {
+    eliminado: true,
+    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+}
+
+export async function restaurarRecuerdoFirebase(id) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  await setDoc(doc(db, "recuerdos", id), {
+    eliminado: false,
+    restoredAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+}
+
 export async function obtenerRespuestaFirebase(recuerdoId) {
   const snapshot = await getDoc(doc(db, "recuerdos", recuerdoId, "respuestas", "aris"));
   return snapshot.exists() ? snapshot.data() : null;
@@ -204,6 +222,11 @@ export async function guardarPortadaFirebase(dataUrl) {
   const url = await subirDataUrlFirebase({ recuerdoId: "configuracion", campo: "portada", dataUrl });
   await setDoc(doc(db, "configuracion", "portada"), { contenido: url, updatedAt: serverTimestamp() }, { merge: true });
   return url;
+}
+
+export async function guardarAjustesPortadaFirebase(ajustes) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  await setDoc(doc(db, "configuracion", "portada"), { ...ajustes, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function obtenerPortadaFirebase() {

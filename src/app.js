@@ -25,6 +25,7 @@ const indicadores = document.getElementById("indicadores");
 const numeroPagina = document.getElementById("numeroPagina");
 const textoGesto = document.getElementById("textoGesto");
 const background = document.getElementById("background");
+const backgroundShade = document.querySelector(".background-shade");
 const album = document.querySelector(".album");
 let fechaReencuentro = "2026-10-09";
 let configGeneral = {};
@@ -32,7 +33,7 @@ let configGeneral = {};
 function prepararRecuerdosVisibles(items) {
   const now = Date.now();
   return items.flatMap(memory => {
-    if (memory.publicado === false || memory.publicationMode === "borrador") return [];
+    if (memory.eliminado || memory.publicado === false || memory.publicationMode === "borrador") return [];
     const unlock = memory.availableAt ? new Date(memory.availableAt).getTime() : 0;
     if (!unlock || unlock <= now) return [memory];
     if (memory.lockMode === "oculto") return [];
@@ -48,7 +49,11 @@ iniciar().catch((error) => {
 });
 
 function revelarAplicacion() {
-  requestAnimationFrame(() => document.body.classList.remove("app-loading"));
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.body.classList.add("cover-intro");
+    document.body.classList.remove("app-loading");
+    setTimeout(() => document.body.classList.remove("cover-intro"), 1800);
+  }));
 }
 
 function precargarImagen(src) {
@@ -287,6 +292,13 @@ function cambiarFondo() {
   const urlSegura = segura.replaceAll('"', '\"');
   background.style.backgroundImage = `url("${urlSegura}")`;
   document.documentElement.style.setProperty("--aris-cover-image", `url("${urlSegura}")`);
+  document.documentElement.style.setProperty("--aris-cover-position", `${portada.position ?? 44}%`);
+  document.documentElement.style.setProperty("--aris-cover-zoom", `${portada.zoom ?? 100}%`);
+  document.documentElement.style.setProperty("--aris-cover-shade", String((portada.shade ?? 22) / 100));
+  background.style.backgroundPosition = `center ${portada.position ?? 44}%`;
+  background.style.backgroundSize = `${portada.zoom ?? 100}% auto`;
+  background.style.filter = `blur(0) saturate(.96) brightness(${(portada.brightness ?? 72) / 100})`;
+  if (backgroundShade) backgroundShade.style.opacity = String(.55 + (portada.shade ?? 22) / 170);
 }
 
 function setSinTransicion(valor) {

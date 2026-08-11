@@ -3,8 +3,8 @@ import { ADMIN_EMAIL } from "../src/firebase/firebase-config.js";
 import {
   observarSesion, iniciarSesion, cerrarSesion, usuarioEsAdmin, prepararPersistenciaAuth,
   obtenerTodosLosRecuerdosFirebase, crearIdRecuerdo, guardarRecuerdoFirebase,
-  borrarRecuerdoFirebase, subirArchivoFirebase, subirDataUrlFirebase,
-  guardarPortadaFirebase, obtenerPortadaFirebase, restaurarPortadaFirebase,
+  borrarRecuerdoFirebase, enviarRecuerdoPapeleraFirebase, restaurarRecuerdoFirebase, subirArchivoFirebase, subirDataUrlFirebase,
+  guardarPortadaFirebase, guardarAjustesPortadaFirebase, obtenerPortadaFirebase, restaurarPortadaFirebase,
   guardarReencuentroFirebase, obtenerReencuentroFirebase, obtenerRespuestasFirebase,
   observarRespuestasFirebase, marcarRespuestaLeidaFirebase,
   guardarConfiguracionGeneralFirebase, obtenerConfiguracionGeneralFirebase
@@ -79,6 +79,8 @@ document.getElementById("refreshMemories").addEventListener("click", loadMemorie
 document.getElementById("backupButton").addEventListener("click", exportBackup);
 document.getElementById("publicationMode").addEventListener("change", event => { document.getElementById("scheduleFields").hidden = event.target.value !== "programado"; });
 document.getElementById("saveSettings").addEventListener("click", saveSettings);
+initAccordion();
+initConnectionStatus();
 
 function renderFields() { clearPreviewMedia(); fields.innerHTML = templates[tipo.value] || templates.texto; wireFilePreviews(); }
 function wireFilePreviews() {
@@ -142,6 +144,7 @@ async function publishMemory(event) {
     setStatus(editingId ? "Recuerdo actualizado en el álbum." : "Recuerdo publicado. Ya está disponible en el álbum.");
     resetForm(false);
     await loadMemories();
+    document.querySelector('[data-section="create"]').open = false;
   } catch (error) { console.error(error); setStatus(friendlyError(error), true); }
   finally { publishButton.disabled = false; setTimeout(() => setProgress(0), 700); }
 }
@@ -155,11 +158,23 @@ async function loadMemories() {
   catch (error) { memoryList.innerHTML = `<div class="empty-state">${escapeHtml(friendlyError(error))}</div>`; }
 }
 function renderList() {
-  if (!memories.length) { memoryList.innerHTML = '<div class="empty-state">Todavía no hay recuerdos publicados.</div>'; return; }
-  memoryList.innerHTML = memories.map(memory => `<article class="memory-row"><div><h3>${escapeHtml(memory.titulo)}</h3><p>${escapeHtml(memory.fecha)} · ${escapeHtml(labelFor(memory.elementos?.[0]?.tipo))}</p></div><div class="row-actions"><button class="icon-button" data-preview="${memory.id}" aria-label="Previsualizar">◉</button><button class="icon-button" data-edit="${memory.id}" aria-label="Editar">✎</button><button class="icon-button" data-delete="${memory.id}" aria-label="Eliminar">×</button></div></article>`).join("");
+  const active = memories.filter(memory => !memory.eliminado);
+  const trash = memories.filter(memory => memory.eliminado);
+  const now = Date.now();
+  const statusFor = memory => memory.publicationMode === "borrador" || memory.publicado === false ? ["BORRADOR", "draft"] : memory.publicationMode === "programado" && new Date(memory.availableAt).getTime() > now ? [`PROGRAMADO · ${new Date(memory.availableAt).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}`, "scheduled"] : ["PUBLICADO", "published"];
+  document.getElementById("metricPublished").textContent = active.filter(memory => statusFor(memory)[1] === "published").length;
+  document.getElementById("metricScheduled").textContent = active.filter(memory => statusFor(memory)[1] === "scheduled").length;
+  document.getElementById("metricDrafts").textContent = active.filter(memory => statusFor(memory)[1] === "draft").length;
+  document.getElementById("memorySummary").textContent = `${active.length} elementos`;
+  document.getElementById("trashSummary").textContent = trash.length ? `${trash.length} recuerdos` : "Vacía";
+  memoryList.innerHTML = active.length ? active.map(memory => { const [label, state] = statusFor(memory); return `<article class="memory-row"><div><span class="status-chip status-${state}">${label}</span><h3>${escapeHtml(memory.titulo)}</h3><p>${escapeHtml(memory.fecha)} · ${escapeHtml(labelFor(memory.elementos?.[0]?.tipo))}</p><small>Último cambio: ${formatTimestamp(memory.updatedAt)}</small></div><div class="row-actions"><button class="icon-button" data-preview="${memory.id}" aria-label="Previsualizar">◉</button><button class="icon-button" data-edit="${memory.id}" aria-label="Editar">✎</button><button class="icon-button" data-delete="${memory.id}" aria-label="Mover a papelera">×</button></div></article>`; }).join("") : '<div class="empty-state">Todavía no hay recuerdos.</div>';
+  const trashList = document.getElementById("trashList");
+  trashList.innerHTML = trash.length ? trash.map(memory => `<article class="memory-row"><div><span class="status-chip status-trash">EN PAPELERA</span><h3>${escapeHtml(memory.titulo)}</h3><p>Eliminado: ${formatTimestamp(memory.deletedAt)}</p></div><div class="row-actions"><button class="secondary-button" data-restore="${memory.id}" type="button">Restaurar</button><button class="ghost-button danger" data-delete-forever="${memory.id}" type="button">Eliminar</button></div></article>`).join("") : '<div class="empty-state">La papelera está vacía.</div>';
   memoryList.querySelectorAll("[data-preview]").forEach(button => button.addEventListener("click", () => { const item = memories.find(memory => memory.id === button.dataset.preview); if (item) preview.innerHTML = renderTarjeta({ ...item.elementos?.[0], fecha: item.fecha, titulo: item.titulo }); window.scrollTo({ top: 0, behavior: "smooth" }); }));
   memoryList.querySelectorAll("[data-edit]").forEach(button => button.addEventListener("click", () => editMemory(button.dataset.edit)));
-  memoryList.querySelectorAll("[data-delete]").forEach(button => button.addEventListener("click", async () => { if (!confirm("¿Eliminar este recuerdo definitivamente?")) return; try { await borrarRecuerdoFirebase(button.dataset.delete); await loadMemories(); setStatus("Recuerdo eliminado."); } catch (error) { setStatus(friendlyError(error), true); } }));
+  memoryList.querySelectorAll("[data-delete]").forEach(button => button.addEventListener("click", async () => { if (!confirm("¿Mover este recuerdo a la papelera?")) return; try { await enviarRecuerdoPapeleraFirebase(button.dataset.delete); await loadMemories(); } catch (error) { setStatus(friendlyError(error), true); } }));
+  trashList.querySelectorAll("[data-restore]").forEach(button => button.addEventListener("click", async () => { await restaurarRecuerdoFirebase(button.dataset.restore); await loadMemories(); }));
+  trashList.querySelectorAll("[data-delete-forever]").forEach(button => button.addEventListener("click", async () => { if (!confirm("Se borrarán también sus archivos. Esta acción no se puede deshacer.")) return; await borrarRecuerdoFirebase(button.dataset.deleteForever); await loadMemories(); }));
 }
 
 function editMemory(id) {
@@ -183,6 +198,7 @@ function editMemory(id) {
   publishButton.textContent = "Guardar cambios";
   updatePreview();
   setStatus("Editando un recuerdo publicado. Los archivos actuales se conservarán si no eliges otros.");
+  document.querySelector('[data-section="create"]').open = true;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -196,15 +212,16 @@ function wireCover() {
   document.getElementById("saveCover").addEventListener("click", publishCover);
   document.getElementById("restoreCover").addEventListener("click", restoreCover);
   document.getElementById("saveReunion").addEventListener("click", saveReunion);
+  ["coverPosition", "coverZoom", "coverBrightness", "coverShade"].forEach(id => document.getElementById(id).addEventListener("input", updateCoverPreviewStyle));
 }
 async function selectCover(event) { const file = event.target.files?.[0]; if (!file) return; try { pendingCoverImage = await compressImage(file); document.getElementById("coverPreviewImage").src = pendingCoverImage; document.getElementById("saveCover").disabled = false; setCoverStatus("Portada preparada."); } catch (error) { setCoverStatus(friendlyError(error), true); } event.target.value = ""; }
-async function publishCover() { if (!pendingCoverImage) return; const button = document.getElementById("saveCover"); button.disabled = true; setCoverStatus("Publicando portada…"); try { const url = await guardarPortadaFirebase(pendingCoverImage); document.getElementById("coverPreviewImage").src = url; pendingCoverImage = ""; setCoverStatus("Portada publicada para todos los dispositivos."); } catch (error) { button.disabled = false; setCoverStatus(friendlyError(error), true); } }
+async function publishCover() { const button = document.getElementById("saveCover"); button.disabled = true; setCoverStatus("Guardando fondo…"); try { let url = document.getElementById("coverPreviewImage").src; if (pendingCoverImage) url = await guardarPortadaFirebase(pendingCoverImage); await guardarAjustesPortadaFirebase(getCoverAdjustments()); document.getElementById("coverPreviewImage").src = url; pendingCoverImage = ""; setCoverStatus("Fondo actualizado para todos los dispositivos."); } catch (error) { setCoverStatus(friendlyError(error), true); } finally { button.disabled = false; } }
 async function restoreCover() { if (!confirm("¿Restaurar la portada original?")) return; try { await restaurarPortadaFirebase(); document.getElementById("coverPreviewImage").src = "../assets/fondo.jpg"; setCoverStatus("Portada original restaurada."); } catch (error) { setCoverStatus(friendlyError(error), true); } }
-async function loadConfiguration() { try { const [cover, reunion, general] = await Promise.all([obtenerPortadaFirebase(), obtenerReencuentroFirebase(), obtenerConfiguracionGeneralFirebase()]); document.getElementById("coverPreviewImage").src = cover?.contenido || "../assets/fondo.jpg"; document.getElementById("reunionDate").value = reunion?.fecha || "2026-10-09"; document.getElementById("settingName").value = general?.nombre || "Aris"; document.getElementById("settingKicker").value = general?.kicker || "A PESAR DE LA DISTANCIA..."; document.getElementById("settingTitle").value = general?.titulo || "Un pedacito de nosotros, cada día."; document.getElementById("settingSubtitle").value = general?.subtitulo || "Para que nos podamos sentir un poco más cerca."; } catch (error) { setCoverStatus(friendlyError(error), true); } }
+async function loadConfiguration() { try { const [cover, reunion, general] = await Promise.all([obtenerPortadaFirebase(), obtenerReencuentroFirebase(), obtenerConfiguracionGeneralFirebase()]); document.getElementById("coverPreviewImage").src = cover?.contenido || "../assets/fondo.jpg"; document.getElementById("coverPosition").value = cover?.position ?? 44; document.getElementById("coverZoom").value = cover?.zoom ?? 100; document.getElementById("coverBrightness").value = cover?.brightness ?? 72; document.getElementById("coverShade").value = cover?.shade ?? 22; updateCoverPreviewStyle(); document.getElementById("reunionDate").value = reunion?.fecha || "2026-10-09"; document.getElementById("reunionSummary").textContent = reunion?.fecha || "Elegir fecha"; document.getElementById("settingName").value = general?.nombre || "Aris"; document.getElementById("settingKicker").value = general?.kicker || "A PESAR DE LA DISTANCIA..."; document.getElementById("settingTitle").value = general?.titulo || "Un pedacito de nosotros, cada día."; document.getElementById("settingSubtitle").value = general?.subtitulo || "Para que nos podamos sentir un poco más cerca."; } catch (error) { setCoverStatus(friendlyError(error), true); } }
 async function saveReunion() { const value = document.getElementById("reunionDate").value; const output = document.getElementById("reunionStatus"); if (!value) { output.textContent = "Elige una fecha."; return; } output.textContent = "Guardando…"; try { await guardarReencuentroFirebase(value); output.textContent = "Fecha actualizada en el álbum."; } catch (error) { output.textContent = friendlyError(error); output.classList.add("is-error"); } }
 
 async function loadResponses() { try { renderResponses(await obtenerRespuestasFirebase()); } catch (error) { document.getElementById("responseList").innerHTML = `<div class="empty-state">${escapeHtml(friendlyError(error))}</div>`; } }
-function renderResponses(responses) { const list = document.getElementById("responseList"); if (!responses.length) { list.innerHTML = '<div class="empty-state">Aris todavía no ha dejado ninguna nota.</div>'; return; } list.innerHTML = responses.map(response => { const memory = memories.find(item => item.id === response.recuerdoId); return `<article class="response-row ${response.leida ? "" : "is-new"}"><h3>${response.corazon ? "♥ " : ""}${escapeHtml(memory?.titulo || "Recuerdo")}${response.leida ? "" : " · Nueva"}</h3><p>${escapeHtml(response.nota || "Ha reaccionado con un corazón.")}</p>${response.leida ? "" : `<button class="ghost-button" data-read-response="${response.recuerdoId}" type="button">Marcar como leída</button>`}</article>`; }).join(""); list.querySelectorAll("[data-read-response]").forEach(button => button.addEventListener("click", () => marcarRespuestaLeidaFirebase(button.dataset.readResponse))); }
+function renderResponses(responses) { const list = document.getElementById("responseList"); const unread = responses.filter(response => !response.leida).length; document.getElementById("metricReplies").textContent = unread; document.getElementById("responseSummary").textContent = unread ? `${unread} nuevas` : "Sin novedades"; if (!responses.length) { list.innerHTML = '<div class="empty-state">Aris todavía no ha dejado ninguna nota.</div>'; return; } list.innerHTML = responses.map(response => { const memory = memories.find(item => item.id === response.recuerdoId); return `<article class="response-row ${response.leida ? "" : "is-new"}"><h3>${response.corazon ? "♥ " : ""}${escapeHtml(memory?.titulo || "Recuerdo")}${response.leida ? "" : " · Nueva"}</h3><p>${escapeHtml(response.nota || "Ha reaccionado con un corazón.")}</p>${response.leida ? "" : `<button class="ghost-button" data-read-response="${response.recuerdoId}" type="button">Marcar como leída</button>`}</article>`; }).join(""); list.querySelectorAll("[data-read-response]").forEach(button => button.addEventListener("click", () => marcarRespuestaLeidaFirebase(button.dataset.readResponse))); }
 async function saveSettings() { const status = document.getElementById("settingsStatus"); status.textContent = "Guardando…"; try { await guardarConfiguracionGeneralFirebase({ nombre: document.getElementById("settingName").value.trim(), kicker: document.getElementById("settingKicker").value.trim(), titulo: document.getElementById("settingTitle").value.trim(), subtitulo: document.getElementById("settingSubtitle").value.trim() }); status.textContent = "Textos actualizados en el álbum."; } catch (error) { status.textContent = friendlyError(error); status.classList.add("is-error"); } }
 async function exportBackup() { try { const [allMemories, responses, cover, reunion] = await Promise.all([obtenerTodosLosRecuerdosFirebase(), obtenerRespuestasFirebase(), obtenerPortadaFirebase(), obtenerReencuentroFirebase()]); const blob = new Blob([JSON.stringify({ version: 3, exportedAt: new Date().toISOString(), recuerdos: allMemories, respuestas: responses, configuracion: { portada: cover, reencuentro: reunion } }, null, 2)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `aris-backup-${new Date().toISOString().slice(0,10)}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); } catch (error) { setStatus(friendlyError(error), true); } }
 let draftTimer;
@@ -213,6 +230,7 @@ function restoreDraft() { try { const draft = JSON.parse(localStorage.getItem(DR
 
 function resetForm(clearStatus = true) { editingId = ""; publishButton.textContent = "Publicar recuerdo"; form.reset(); document.getElementById("fecha").value = new Date().toISOString().slice(0, 10); renderFields(); updatePreview(); if (clearStatus) { localStorage.removeItem(DRAFT_KEY); setStatus(""); } }
 function formatDate(value) { if (!value) return ""; return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`)); }
+function formatTimestamp(value) { const date = value?.toDate?.() || (value?.seconds ? new Date(value.seconds * 1000) : null); return date ? date.toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "ahora"; }
 function labelFor(value) { return ({ foto: "Fotografía", texto: "Carta", video: "Vídeo", audio: "Nota de voz", spotify: "Spotify", youtube: "YouTube", ubicacion: "Lugar" })[value] || "Recuerdo"; }
 function setStatus(message, error = false) { formStatus.textContent = message; formStatus.classList.toggle("is-error", error); }
 function setCoverStatus(message, error = false) { const output = document.getElementById("coverStatus"); output.textContent = message; output.classList.toggle("is-error", error); }
@@ -221,3 +239,8 @@ function friendlyError(error) { const code = String(error?.code || ""); if (code
 async function compressImage(file) { const source = await fileToDataUrl(file); const image = await loadImage(source); const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.naturalWidth, image.naturalHeight)); const canvas = document.createElement("canvas"); canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale)); const context = canvas.getContext("2d", { alpha: false }); context.drawImage(image, 0, 0, canvas.width, canvas.height); return canvas.toDataURL("image/jpeg", JPEG_QUALITY); }
 function fileToDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); }); }
 function loadImage(src) { return new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = src; }); }
+
+function getCoverAdjustments() { return { position: Number(document.getElementById("coverPosition").value), zoom: Number(document.getElementById("coverZoom").value), brightness: Number(document.getElementById("coverBrightness").value), shade: Number(document.getElementById("coverShade").value) }; }
+function updateCoverPreviewStyle() { const image = document.getElementById("coverPreviewImage"); const shade = document.getElementById("coverPreviewShade"); const values = getCoverAdjustments(); image.style.objectPosition = `center ${values.position}%`; image.style.transform = `scale(${values.zoom / 100})`; image.style.filter = `brightness(${values.brightness / 100})`; shade.style.background = `rgba(0,0,0,${values.shade / 100})`; }
+function initAccordion() { const sections = [...document.querySelectorAll(".dashboard-section")]; sections.forEach(section => section.addEventListener("toggle", () => { if (!section.open) return; sections.forEach(other => { if (other !== section) other.open = false; }); sessionStorage.setItem("aris-admin-section", section.dataset.section || ""); })); const remembered = sessionStorage.getItem("aris-admin-section"); if (remembered) document.querySelector(`[data-section="${remembered}"]`)?.setAttribute("open", ""); }
+function initConnectionStatus() { const output = document.getElementById("connectionStatus"); const update = () => { const online = navigator.onLine; output.classList.toggle("is-offline", !online); output.querySelector("span").textContent = online ? "Conectado" : "Sin conexión"; }; addEventListener("online", update); addEventListener("offline", update); update(); }
