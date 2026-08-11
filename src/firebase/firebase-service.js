@@ -224,6 +224,25 @@ export async function guardarPortadaFirebase(dataUrl) {
   return url;
 }
 
+export async function reemplazarGaleriaPortadasFirebase(dataUrls) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  const imagenes = dataUrls.filter(value => String(value).startsWith("data:"));
+  if (!imagenes.length) throw new Error("Selecciona al menos una imagen.");
+  const carpeta = ref(storage, "aris/recuerdos/configuracion");
+  const anteriores = await listAll(carpeta).catch(() => ({ items: [] }));
+  const urls = [];
+  for (let index = 0; index < imagenes.length; index += 1) {
+    const dataUrl = imagenes[index];
+    const tipo = String(dataUrl).slice(5, String(dataUrl).indexOf(";")) || "image/jpeg";
+    const referencia = ref(storage, `aris/recuerdos/configuracion/portada-galeria-${Date.now()}-${index}.jpg`);
+    await uploadString(referencia, dataUrl, "data_url", { contentType: tipo, cacheControl: "public,max-age=31536000,immutable" });
+    urls.push(await getDownloadURL(referencia));
+  }
+  await setDoc(doc(db, "configuracion", "portada"), { contenido: urls[0], imagenes: urls, updatedAt: serverTimestamp() }, { merge: true });
+  await Promise.allSettled(anteriores.items.map(item => deleteObject(item)));
+  return urls;
+}
+
 export async function guardarAjustesPortadaFirebase(ajustes) {
   if (!usuarioEsAdmin()) throw new Error("No autorizado.");
   await setDoc(doc(db, "configuracion", "portada"), { ...ajustes, updatedAt: serverTimestamp() }, { merge: true });

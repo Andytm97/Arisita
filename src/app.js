@@ -31,6 +31,19 @@ let fechaReencuentro = "2026-10-09";
 let configGeneral = {};
 const paginaFinal = { id: "proximo-recuerdo", tipo: "proximo", titulo: "Aquí aparecerá el próximo recuerdo.", descripcion: "Cuando tenga algo nuevo que contarte, aparecerá justo aquí." };
 const conPaginaFinal = items => [...items, paginaFinal];
+function elegirPortada(configuracion) {
+  const images = configuracion?.imagenes?.length ? configuracion.imagenes : (configuracion?.contenido ? [configuracion.contenido] : []);
+  if (!images.length) return configuracion?.contenido || "";
+  let candidates = images;
+  try { const last = localStorage.getItem("aris-last-random-cover"); if (images.length > 1) candidates = images.filter(url => url !== last); } catch (_) {}
+  const selected = candidates[Math.floor(Math.random() * candidates.length)] || images[0];
+  try { localStorage.setItem("aris-last-random-cover", selected); } catch (_) {}
+  return selected;
+}
+
+function imagenesPortada(configuracion) {
+  return configuracion?.imagenes?.length ? configuracion.imagenes : (configuracion?.contenido ? [configuracion.contenido] : []);
+}
 
 function prepararRecuerdosVisibles(items) {
   const now = Date.now();
@@ -77,8 +90,10 @@ async function iniciar() {
 
   try {
     const portadaLista = obtenerPortadaFirebase().then(async portada => {
-      await precargarImagen(portada?.contenido);
-      return portada;
+      const contenido = elegirPortada(portada);
+      const precargas = portada?.mode === "mosaic" ? imagenesPortada(portada) : [contenido];
+      await Promise.all(precargas.map(precargarImagen));
+      return portada ? { ...portada, contenido } : portada;
     });
     [recuerdosFirebase, portadaFirebase, reencuentroFirebase, generalFirebase] = await Promise.all([
       obtenerRecuerdosFirebase(),
@@ -92,12 +107,13 @@ async function iniciar() {
 
   fechaReencuentro = reencuentroFirebase?.fecha || fechaReencuentro;
   configGeneral = generalFirebase || {};
+  const portadaElegida = portadaFirebase?.contenido || "";
 
   data = normalizarContenido({
     ...DEMO_DATA,
     nombre: configGeneral.nombre || DEMO_DATA.nombre,
-    portada: portadaFirebase?.contenido
-      ? { ...DEMO_DATA.portada, titulo: configGeneral.titulo || DEMO_DATA.portada.titulo, texto: configGeneral.subtitulo || DEMO_DATA.portada.texto, contenido: portadaFirebase.contenido }
+    portada: portadaElegida
+      ? { ...DEMO_DATA.portada, ...portadaFirebase, titulo: configGeneral.titulo || DEMO_DATA.portada.titulo, texto: configGeneral.subtitulo || DEMO_DATA.portada.texto, contenido: portadaElegida }
       : { ...DEMO_DATA.portada, titulo: configGeneral.titulo || DEMO_DATA.portada.titulo, texto: configGeneral.subtitulo || DEMO_DATA.portada.texto },
     recuerdos: prepararRecuerdosVisibles(recuerdosFirebase)
   }, DEMO_DATA);
@@ -296,6 +312,22 @@ function cambiarFondo() {
   background.style.backgroundImage = "none";
   let image = background.querySelector(".background-image");
   if (!image) { image = document.createElement("img"); image.className = "background-image"; image.alt = ""; background.appendChild(image); }
+  let mosaic = background.querySelector(".background-mosaic");
+  if (!mosaic) { mosaic = document.createElement("div"); mosaic.className = "background-mosaic"; background.appendChild(mosaic); }
+  const sources = imagenesPortada(portada);
+  const useMosaic = portada.mode === "mosaic" && sources.length > 1;
+  if (useMosaic) {
+    const ratio = Math.max(.45, innerWidth / innerHeight);
+    const columns = Math.max(1, Math.ceil(Math.sqrt(sources.length * ratio)));
+    const rows = Math.max(1, Math.ceil(sources.length / columns), Math.ceil(columns / ratio));
+    const count = columns * rows;
+    const tiles = Array.from({ length: count }, (_, index) => sources[index % sources.length]);
+    mosaic.style.setProperty("--mosaic-columns", columns);
+    mosaic.style.setProperty("--mosaic-rows", rows);
+    mosaic.replaceChildren(...tiles.map(source => { const tile = document.createElement("img"); tile.src = source; tile.alt = ""; return tile; }));
+  } else mosaic.replaceChildren();
+  mosaic.hidden = !useMosaic;
+  image.hidden = useMosaic;
   image.src = segura;
   image.style.objectPosition = `center ${portada.position ?? 44}%`;
   document.documentElement.style.setProperty("--aris-cover-position", `${portada.position ?? 44}%`);
