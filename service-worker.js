@@ -1,11 +1,11 @@
-const CACHE_NAME = "aris-v2-firebase-20260811-v7";
+const CACHE_NAME = "aris-v2-firebase-20260811-v8";
 const CORE = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./src/app.js", "./src/firebase/firebase-config.js", "./src/firebase/firebase-service.js", "./src/core/utils.js", "./src/core/content-model.js",
   "./src/components/memory-renderer.js", "./src/data/demo-data.js",
   "./assets/fondo.jpg", "./assets/favicon.svg",
   "./assets/icons/icon-192.png", "./assets/icons/icon-512.png",
-  "./admin/", "./admin/index.html", "./admin/admin.css", "./admin/admin.js"
+  "./admin/", "./admin/index.html", "./admin/manifest.webmanifest", "./admin/admin.css", "./admin/admin.js"
 ];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE)).then(() => self.skipWaiting()));
