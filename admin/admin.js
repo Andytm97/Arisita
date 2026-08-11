@@ -5,7 +5,9 @@ import {
   obtenerTodosLosRecuerdosFirebase, crearIdRecuerdo, guardarRecuerdoFirebase,
   borrarRecuerdoFirebase, subirArchivoFirebase, subirDataUrlFirebase,
   guardarPortadaFirebase, obtenerPortadaFirebase, restaurarPortadaFirebase,
-  guardarReencuentroFirebase, obtenerReencuentroFirebase, obtenerRespuestasFirebase
+  guardarReencuentroFirebase, obtenerReencuentroFirebase, obtenerRespuestasFirebase,
+  observarRespuestasFirebase, marcarRespuestaLeidaFirebase,
+  guardarConfiguracionGeneralFirebase, obtenerConfiguracionGeneralFirebase
 } from "../src/firebase/firebase-service.js";
 
 const MAX_IMAGE_EDGE = 1280;
@@ -62,6 +64,7 @@ async function initialiseAdmin() {
   wireCover();
   await Promise.all([loadMemories(), loadConfiguration(), loadResponses()]);
   restoreDraft();
+  observarRespuestasFirebase(responses => renderResponses(responses));
   updatePreview();
 }
 
@@ -74,6 +77,8 @@ document.getElementById("previewButton").addEventListener("click", updatePreview
 document.getElementById("resetForm").addEventListener("click", resetForm);
 document.getElementById("refreshMemories").addEventListener("click", loadMemories);
 document.getElementById("backupButton").addEventListener("click", exportBackup);
+document.getElementById("publicationMode").addEventListener("change", event => { document.getElementById("scheduleFields").hidden = event.target.value !== "programado"; });
+document.getElementById("saveSettings").addEventListener("click", saveSettings);
 
 function renderFields() { clearPreviewMedia(); fields.innerHTML = templates[tipo.value] || templates.texto; wireFilePreviews(); }
 function wireFilePreviews() {
@@ -131,7 +136,8 @@ async function publishMemory(event) {
     const element = { ...page, id: `${id}-elemento-1` };
     delete element.fecha;
     setStatus("Guardando recuerdo…"); setProgress(88);
-    await retry(() => guardarRecuerdoFirebase({ ...(existing || {}), id, fecha: formatDate(rawDate), fechaISO: rawDate, titulo: String(fd.get("titulo")), destacado: fd.get("destacado") === "on", elementos: [element] }));
+    const publicationMode = String(fd.get("publicationMode") || "ahora");
+    await retry(() => guardarRecuerdoFirebase({ ...(existing || {}), id, fecha: formatDate(rawDate), fechaISO: rawDate, titulo: String(fd.get("titulo")), destacado: fd.get("destacado") === "on", publicado: publicationMode !== "borrador", publicationMode, availableAt: String(fd.get("availableAt") || ""), lockMode: String(fd.get("lockMode") || "cerrado"), elementos: [element] }));
     setProgress(100); localStorage.removeItem(DRAFT_KEY);
     setStatus(editingId ? "Recuerdo actualizado en el álbum." : "Recuerdo publicado. Ya está disponible en el álbum.");
     resetForm(false);
@@ -167,6 +173,10 @@ function editMemory(id) {
   document.getElementById("fecha").value = memory.fechaISO || "";
   document.getElementById("titulo").value = memory.titulo || "";
   document.getElementById("destacado").checked = Boolean(memory.destacado);
+  document.getElementById("publicationMode").value = memory.publicationMode || (memory.publicado === false ? "borrador" : "ahora");
+  document.getElementById("scheduleFields").hidden = document.getElementById("publicationMode").value !== "programado";
+  if (form.elements.availableAt) form.elements.availableAt.value = memory.availableAt || "";
+  if (form.elements.lockMode) form.elements.lockMode.value = memory.lockMode || "cerrado";
   const values = { ...page, cancionTitulo: page.cancion?.titulo, artista: page.cancion?.artista, videoTitulo: page.titulo };
   Object.entries(values).forEach(([name, value]) => { const field = form.elements[name]; if (field && typeof value === "string" && field.type !== "file") field.value = value; });
   fields.querySelectorAll('input[type="file"][required]').forEach(input => input.required = false);
@@ -190,10 +200,12 @@ function wireCover() {
 async function selectCover(event) { const file = event.target.files?.[0]; if (!file) return; try { pendingCoverImage = await compressImage(file); document.getElementById("coverPreviewImage").src = pendingCoverImage; document.getElementById("saveCover").disabled = false; setCoverStatus("Portada preparada."); } catch (error) { setCoverStatus(friendlyError(error), true); } event.target.value = ""; }
 async function publishCover() { if (!pendingCoverImage) return; const button = document.getElementById("saveCover"); button.disabled = true; setCoverStatus("Publicando portada…"); try { const url = await guardarPortadaFirebase(pendingCoverImage); document.getElementById("coverPreviewImage").src = url; pendingCoverImage = ""; setCoverStatus("Portada publicada para todos los dispositivos."); } catch (error) { button.disabled = false; setCoverStatus(friendlyError(error), true); } }
 async function restoreCover() { if (!confirm("¿Restaurar la portada original?")) return; try { await restaurarPortadaFirebase(); document.getElementById("coverPreviewImage").src = "../assets/fondo.jpg"; setCoverStatus("Portada original restaurada."); } catch (error) { setCoverStatus(friendlyError(error), true); } }
-async function loadConfiguration() { try { const [cover, reunion] = await Promise.all([obtenerPortadaFirebase(), obtenerReencuentroFirebase()]); document.getElementById("coverPreviewImage").src = cover?.contenido || "../assets/fondo.jpg"; document.getElementById("reunionDate").value = reunion?.fecha || "2026-10-09"; } catch (error) { setCoverStatus(friendlyError(error), true); } }
+async function loadConfiguration() { try { const [cover, reunion, general] = await Promise.all([obtenerPortadaFirebase(), obtenerReencuentroFirebase(), obtenerConfiguracionGeneralFirebase()]); document.getElementById("coverPreviewImage").src = cover?.contenido || "../assets/fondo.jpg"; document.getElementById("reunionDate").value = reunion?.fecha || "2026-10-09"; document.getElementById("settingName").value = general?.nombre || "Aris"; document.getElementById("settingKicker").value = general?.kicker || "A PESAR DE LA DISTANCIA..."; document.getElementById("settingTitle").value = general?.titulo || "Un pedacito de nosotros, cada día."; document.getElementById("settingSubtitle").value = general?.subtitulo || "Para que nos podamos sentir un poco más cerca."; } catch (error) { setCoverStatus(friendlyError(error), true); } }
 async function saveReunion() { const value = document.getElementById("reunionDate").value; const output = document.getElementById("reunionStatus"); if (!value) { output.textContent = "Elige una fecha."; return; } output.textContent = "Guardando…"; try { await guardarReencuentroFirebase(value); output.textContent = "Fecha actualizada en el álbum."; } catch (error) { output.textContent = friendlyError(error); output.classList.add("is-error"); } }
 
-async function loadResponses() { const list = document.getElementById("responseList"); try { const responses = await obtenerRespuestasFirebase(); if (!responses.length) { list.innerHTML = '<div class="empty-state">Aris todavía no ha dejado ninguna nota.</div>'; return; } list.innerHTML = responses.map(response => { const memory = memories.find(item => item.id === response.recuerdoId); return `<article class="response-row"><h3>${response.corazon ? "♥ " : ""}${escapeHtml(memory?.titulo || "Recuerdo")}</h3><p>${escapeHtml(response.nota || "Ha reaccionado con un corazón.")}</p></article>`; }).join(""); } catch (error) { list.innerHTML = `<div class="empty-state">${escapeHtml(friendlyError(error))}</div>`; } }
+async function loadResponses() { try { renderResponses(await obtenerRespuestasFirebase()); } catch (error) { document.getElementById("responseList").innerHTML = `<div class="empty-state">${escapeHtml(friendlyError(error))}</div>`; } }
+function renderResponses(responses) { const list = document.getElementById("responseList"); if (!responses.length) { list.innerHTML = '<div class="empty-state">Aris todavía no ha dejado ninguna nota.</div>'; return; } list.innerHTML = responses.map(response => { const memory = memories.find(item => item.id === response.recuerdoId); return `<article class="response-row ${response.leida ? "" : "is-new"}"><h3>${response.corazon ? "♥ " : ""}${escapeHtml(memory?.titulo || "Recuerdo")}${response.leida ? "" : " · Nueva"}</h3><p>${escapeHtml(response.nota || "Ha reaccionado con un corazón.")}</p>${response.leida ? "" : `<button class="ghost-button" data-read-response="${response.recuerdoId}" type="button">Marcar como leída</button>`}</article>`; }).join(""); list.querySelectorAll("[data-read-response]").forEach(button => button.addEventListener("click", () => marcarRespuestaLeidaFirebase(button.dataset.readResponse))); }
+async function saveSettings() { const status = document.getElementById("settingsStatus"); status.textContent = "Guardando…"; try { await guardarConfiguracionGeneralFirebase({ nombre: document.getElementById("settingName").value.trim(), kicker: document.getElementById("settingKicker").value.trim(), titulo: document.getElementById("settingTitle").value.trim(), subtitulo: document.getElementById("settingSubtitle").value.trim() }); status.textContent = "Textos actualizados en el álbum."; } catch (error) { status.textContent = friendlyError(error); status.classList.add("is-error"); } }
 async function exportBackup() { try { const [allMemories, responses, cover, reunion] = await Promise.all([obtenerTodosLosRecuerdosFirebase(), obtenerRespuestasFirebase(), obtenerPortadaFirebase(), obtenerReencuentroFirebase()]); const blob = new Blob([JSON.stringify({ version: 3, exportedAt: new Date().toISOString(), recuerdos: allMemories, respuestas: responses, configuracion: { portada: cover, reencuentro: reunion } }, null, 2)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `aris-backup-${new Date().toISOString().slice(0,10)}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); } catch (error) { setStatus(friendlyError(error), true); } }
 let draftTimer;
 function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(() => { const values = {}; new FormData(form).forEach((value, key) => { if (typeof value === "string") values[key] = value; }); localStorage.setItem(DRAFT_KEY, JSON.stringify({ values, tipo: tipo.value })); }, 350); }

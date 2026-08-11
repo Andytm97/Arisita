@@ -39,6 +39,8 @@
         <label class="field"><span>Tipo de contenido</span><select id="tipo" name="tipo"><option value="foto">Fotografía</option><option value="texto">Carta</option><option value="video">Vídeo</option><option value="audio">Nota de voz</option><option value="spotify">Spotify</option><option value="youtube">YouTube</option><option value="ubicacion">Ubicación</option></select></label>
         <div id="dynamicFields" class="dynamic-fields"></div>
         <label class="field checkbox-field"><input id="destacado" name="destacado" type="checkbox"><span>Marcar como recuerdo destacado</span></label>
+        <label class="field"><span>Publicación</span><select id="publicationMode" name="publicationMode"><option value="ahora">Publicar ahora</option><option value="programado">Programar para una fecha</option><option value="borrador">Guardar como borrador privado</option></select></label>
+        <div id="scheduleFields" hidden><label class="field"><span>Disponible desde</span><input name="availableAt" type="datetime-local"></label><label class="field"><span>Antes de esa fecha</span><select name="lockMode"><option value="cerrado">Mostrar como regalo cerrado</option><option value="oculto">Ocultarlo completamente</option></select></label></div>
         <div class="form-actions"><button id="publishButton" class="primary-button" type="submit">Publicar recuerdo</button><button id="previewButton" class="secondary-button" type="button">Actualizar vista previa</button></div>
         <p id="formStatus" class="form-status" aria-live="polite"></p>
         <div id="publishProgress" class="publish-progress" hidden><span></span></div>
@@ -58,6 +60,12 @@
       <div class="panel-heading"><div><p class="step-label">PRÓXIMO REENCUENTRO</p><h2>¿Cuándo os volvéis a ver?</h2></div></div>
       <div class="reunion-controls"><label class="field"><span>Fecha</span><input id="reunionDate" type="date"></label><button id="saveReunion" class="primary-button" type="button">Guardar fecha</button></div>
       <p id="reunionStatus" class="form-status" aria-live="polite"></p>
+    </section>
+
+    <section class="cover-admin-panel">
+      <div class="panel-heading"><div><p class="step-label">TEXTOS DE ARIS</p><h2>Personalizar el álbum</h2></div></div>
+      <div class="settings-grid"><label class="field"><span>Nombre</span><input id="settingName" value="Aris"></label><label class="field"><span>Lema de portada</span><input id="settingKicker" value="A PESAR DE LA DISTANCIA..."></label><label class="field"><span>Título de portada</span><input id="settingTitle" value="Un pedacito de nosotros, cada día."></label><label class="field"><span>Subtítulo</span><input id="settingSubtitle" value="Para que nos podamos sentir un poco más cerca."></label></div>
+      <button id="saveSettings" class="primary-button" type="button">Guardar textos</button><p id="settingsStatus" class="form-status" aria-live="polite"></p>
     </section>
 
     <section class="library-panel"><div class="panel-heading"><div><p class="step-label">PUBLICADOS</p><h2>Recuerdos en ARIS</h2></div><div class="library-actions"><button id="backupButton" class="secondary-button" type="button">Descargar copia</button><button id="refreshMemories" class="secondary-button" type="button">Actualizar</button></div></div><div id="memoryList" class="memory-list"></div><p class="storage-note">Los recuerdos están guardados en Firebase y aparecen en el álbum desde cualquier dispositivo.</p></section>

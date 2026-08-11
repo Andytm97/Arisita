@@ -266,7 +266,7 @@ a { -webkit-tap-highlight-color: transparent; }
     url("assets/fondo.jpg") center/cover;
 }
 
-.memory-response-actions{position:relative;z-index:12;display:flex;align-items:center;justify-content:flex-end;gap:9px;width:100%;margin-top:12px;color:rgba(255,255,255,.54)}
+.memory-feedback-line-v2{position:static!important;z-index:auto;display:flex!important;align-items:center;justify-content:flex-end;gap:9px;width:100%;margin:12px 0 0!important;padding:0!important;border:0!important;border-radius:0!important;background:none!important;box-shadow:none!important;backdrop-filter:none!important;color:rgba(255,255,255,.54)}
 .response-heart,.response-note{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}.response-heart{width:31px;height:31px;padding:0;font-size:26px;line-height:1}.response-heart.is-active{color:#ff8da1}.response-note{padding:4px 0;font-size:11px;letter-spacing:.015em}.response-heart:active,.response-note:active{opacity:.65}
 .response-modal{position:fixed;z-index:2000;inset:0;display:grid;align-items:end;padding:18px;background:rgba(4,3,6,.72);opacity:0;visibility:hidden;transition:opacity .22s ease,visibility .22s ease}.response-modal.is-open{opacity:1;visibility:visible}.response-sheet{position:relative;width:min(100%,430px);margin:auto;padding:26px 22px calc(22px + env(safe-area-inset-bottom));border:1px solid rgba(255,255,255,.15);border-radius:28px;background:#171519;color:#fff}.response-sheet h2{margin:8px 0 18px;font-size:27px;line-height:1.05}.response-kicker{margin:0;font-size:10px;letter-spacing:.16em;opacity:.5}.response-sheet textarea{width:100%;min-height:140px;padding:15px;border:1px solid rgba(255,255,255,.14);border-radius:18px;background:rgba(255,255,255,.07);color:#fff;font:inherit;resize:none}.primary-response{width:100%;margin-top:12px;padding:14px;border:0;border-radius:16px;background:#fff;color:#111;font-weight:750}.response-close{position:absolute;right:16px;top:14px;width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:#fff;font-size:23px}.response-status{min-height:18px;margin:10px 0 0;font-size:12px;color:#a7eab9}
 
@@ -1803,6 +1803,8 @@ body:not(.app-loading) .app {
   background-repeat: no-repeat !important;
 }
 
+
+.locked-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:34px;text-align:center;background:radial-gradient(circle at 50% 30%,rgba(255,141,161,.17),transparent 36%),rgba(24,21,26,.92)}.locked-symbol{font-size:40px;color:#ff8da1;margin-bottom:18px}.locked-card .card-title{margin-top:12px;max-width:300px}.locked-card .card-description{max-width:280px}.new-memory-toast{position:fixed;z-index:1500;left:50%;top:max(18px,env(safe-area-inset-top));transform:translate(-50%,-12px);padding:12px 18px;border:1px solid rgba(255,255,255,.15);border-radius:999px;background:rgba(18,16,20,.9);color:#fff;font-size:12px;opacity:0;transition:.3s ease}.new-memory-toast.is-visible{opacity:1;transform:translate(-50%,0)}
 
 /* ARIS v1.0 · sugerencia discreta para abrir sin barras de Safari */
 .install-hint {

@@ -16,12 +16,12 @@ service cloud.firestore {
         allow create: if request.auth != null
           && respuestaId == "aris"
           && request.resource.data.ownerUid == request.auth.uid
-          && request.resource.data.keys().hasOnly(["ownerUid", "autor", "corazon", "nota", "updatedAt"]);
+          && request.resource.data.keys().hasOnly(["ownerUid", "autor", "corazon", "nota", "updatedAt", "leida", "leidaAt"]);
         allow update: if request.auth != null
           && respuestaId == "aris"
           && (resource.data.ownerUid == request.auth.uid || isAdmin())
           && request.resource.data.ownerUid == resource.data.ownerUid
-          && request.resource.data.keys().hasOnly(["ownerUid", "autor", "corazon", "nota", "updatedAt"]);
+          && request.resource.data.keys().hasOnly(["ownerUid", "autor", "corazon", "nota", "updatedAt", "leida", "leidaAt"]);
         allow delete: if isAdmin();
       }
     }

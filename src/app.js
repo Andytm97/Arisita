@@ -2,7 +2,7 @@ import { DEMO_DATA } from "./data/demo-data.js";
 import { normalizarContenido } from "./core/content-model.js";
 import { escapar, atributoSeguro, suavizarProgreso, formatearTiempo } from "./core/utils.js";
 import { renderTarjeta } from "./components/memory-renderer.js";
-import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase, asegurarSesionAlbum, obtenerRespuestaFirebase, guardarRespuestaFirebase } from "./firebase/firebase-service.js";
+import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase, obtenerConfiguracionGeneralFirebase, observarRecuerdosFirebase, asegurarSesionAlbum, obtenerRespuestaFirebase, guardarRespuestaFirebase } from "./firebase/firebase-service.js";
 
 let data = DEMO_DATA;
 let paginas = [];
@@ -27,6 +27,18 @@ const textoGesto = document.getElementById("textoGesto");
 const background = document.getElementById("background");
 const album = document.querySelector(".album");
 let fechaReencuentro = "2026-10-09";
+let configGeneral = {};
+
+function prepararRecuerdosVisibles(items) {
+  const now = Date.now();
+  return items.flatMap(memory => {
+    if (memory.publicado === false || memory.publicationMode === "borrador") return [];
+    const unlock = memory.availableAt ? new Date(memory.availableAt).getTime() : 0;
+    if (!unlock || unlock <= now) return [memory];
+    if (memory.lockMode === "oculto") return [];
+    return [{ ...memory, elementos: [{ tipo: "bloqueado", titulo: "Hay algo esperando para ti…", descripcion: `Podrás abrirlo el ${new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long" }).format(new Date(unlock))} ♥`, desbloqueo: memory.availableAt }] }];
+  });
+}
 
 iniciar().catch((error) => {
   console.error("ARIS no pudo iniciar con los datos guardados.", error);
@@ -54,34 +66,42 @@ async function iniciar() {
   let recuerdosFirebase = [];
   let portadaFirebase = null;
   let reencuentroFirebase = null;
+  let generalFirebase = null;
 
   try {
     const portadaLista = obtenerPortadaFirebase().then(async portada => {
       await precargarImagen(portada?.contenido);
       return portada;
     });
-    [recuerdosFirebase, portadaFirebase, reencuentroFirebase] = await Promise.all([
+    [recuerdosFirebase, portadaFirebase, reencuentroFirebase, generalFirebase] = await Promise.all([
       obtenerRecuerdosFirebase(),
       portadaLista,
-      obtenerReencuentroFirebase()
+      obtenerReencuentroFirebase(),
+      obtenerConfiguracionGeneralFirebase()
     ]);
   } catch (error) {
     console.warn("Firebase no está disponible; ARIS mostrará el álbum vacío.", error);
   }
 
   fechaReencuentro = reencuentroFirebase?.fecha || fechaReencuentro;
+  configGeneral = generalFirebase || {};
 
   data = normalizarContenido({
     ...DEMO_DATA,
+    nombre: configGeneral.nombre || DEMO_DATA.nombre,
     portada: portadaFirebase?.contenido
-      ? { ...DEMO_DATA.portada, contenido: portadaFirebase.contenido }
-      : DEMO_DATA.portada,
-    recuerdos: recuerdosFirebase
+      ? { ...DEMO_DATA.portada, titulo: configGeneral.titulo || DEMO_DATA.portada.titulo, texto: configGeneral.subtitulo || DEMO_DATA.portada.texto, contenido: portadaFirebase.contenido }
+      : { ...DEMO_DATA.portada, titulo: configGeneral.titulo || DEMO_DATA.portada.titulo, texto: configGeneral.subtitulo || DEMO_DATA.portada.texto },
+    recuerdos: prepararRecuerdosVisibles(recuerdosFirebase)
   }, DEMO_DATA);
 
   prepararAplicacion(data);
   revelarAplicacion();
+  let firstSnapshot = true;
+  observarRecuerdosFirebase(items => { if (firstSnapshot) { firstSnapshot = false; return; } const updated = normalizarContenido({ ...data, recuerdos: prepararRecuerdosVisibles(items) }, DEMO_DATA); const previousCount = paginas.length; data = updated; paginas = updated.paginas; crearIndicadores(); if (enAlbum) { paginaActual = Math.min(paginaActual, Math.max(0, paginas.length - 1)); mostrarPagina(); } if (paginas.length > previousCount) mostrarAvisoNuevoRecuerdo(); });
 }
+
+function mostrarAvisoNuevoRecuerdo() { const notice = document.createElement("div"); notice.className = "new-memory-toast"; notice.textContent = "Hay un recuerdo nuevo para ti ♥"; document.body.appendChild(notice); requestAnimationFrame(() => notice.classList.add("is-visible")); setTimeout(() => notice.remove(), 3200); }
 
 function actualizarCuentaAtras() {
   const pie = document.getElementById("cuentaAtras");
@@ -122,7 +142,7 @@ function cargarTarjeta(elemento, pagina) {
 
 async function prepararRespuesta(elemento, pagina) {
   const actions = document.createElement("div");
-  actions.className = "memory-response-actions";
+  actions.className = "memory-feedback-line-v2";
   actions.innerHTML = `<button type="button" class="response-heart" aria-label="Reaccionar con un corazón">♡</button><button type="button" class="response-note">Deja una nota</button>`;
   const description = elemento.querySelector(".card-description, .spotify-description, .letter-signature");
   const copy = elemento.querySelector(".card-copy, .spotify-player, .letter-body, .card-inner");
@@ -211,7 +231,7 @@ function mostrarPortada() {
   tarjetaActual.dataset.index = "portada";
   tarjetaActual.innerHTML = `
     <div class="card-inner cover-card">
-      <p class="cover-kicker">A PESAR DE LA DISTANCIA...</p>
+      <p class="cover-kicker">${escapar(configGeneral.kicker || "A PESAR DE LA DISTANCIA...")}</p>
       <h2 class="cover-title">${escapar(portada.titulo || "Un pedacito de nosotros, cada día.")}</h2>
       <p class="cover-copy">${escapar(portada.texto || "Tengo algo que enseñarte.")}</p>
       <div class="cover-arrow" aria-hidden="true"></div>

@@ -17,6 +17,7 @@ import {
   setDoc,
   deleteDoc,
   collectionGroup,
+  onSnapshot,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 import {
@@ -72,6 +73,10 @@ export async function obtenerRecuerdosFirebase() {
     .map(item => ({ id: item.id, ...item.data() }))
     .filter(item => item.publicado !== false)
     .sort((a, b) => String(a.fechaISO || a.fecha || "").localeCompare(String(b.fechaISO || b.fecha || "")) || String(a.createdAt?.seconds || 0).localeCompare(String(b.createdAt?.seconds || 0)));
+}
+
+export function observarRecuerdosFirebase(callback) {
+  return onSnapshot(collection(db, "recuerdos"), snapshot => callback(snapshot.docs.map(item => ({ id: item.id, ...item.data() }))));
 }
 
 export async function obtenerTodosLosRecuerdosFirebase() {
@@ -135,6 +140,7 @@ export async function guardarRespuestaFirebase(recuerdoId, { corazon, nota }) {
     autor: "Aris",
     corazon: Boolean(corazon),
     nota: String(nota || "").slice(0, 600),
+    leida: false,
     updatedAt: serverTimestamp()
   }, { merge: true });
 }
@@ -143,6 +149,25 @@ export async function obtenerRespuestasFirebase() {
   if (!usuarioEsAdmin()) throw new Error("No autorizado.");
   const snapshot = await getDocs(collectionGroup(db, "respuestas"));
   return snapshot.docs.map(item => ({ recuerdoId: item.ref.parent.parent?.id || "", ...item.data() }));
+}
+
+export function observarRespuestasFirebase(callback) {
+  return onSnapshot(collectionGroup(db, "respuestas"), snapshot => callback(snapshot.docs.map(item => ({ id: item.id, recuerdoId: item.ref.parent.parent?.id || "", ...item.data() }))));
+}
+
+export async function marcarRespuestaLeidaFirebase(recuerdoId) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  await setDoc(doc(db, "recuerdos", recuerdoId, "respuestas", "aris"), { leida: true, leidaAt: serverTimestamp() }, { merge: true });
+}
+
+export async function guardarConfiguracionGeneralFirebase(configuracion) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  await setDoc(doc(db, "configuracion", "general"), { ...configuracion, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function obtenerConfiguracionGeneralFirebase() {
+  const snapshot = await getDoc(doc(db, "configuracion", "general"));
+  return snapshot.exists() ? snapshot.data() : null;
 }
 
 function extensionSegura(nombre = "archivo", tipo = "") {

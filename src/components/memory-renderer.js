@@ -11,6 +11,10 @@ export function renderTarjeta(pagina) {
   const etiqueta = escapar(pagina.etiqueta || nombreTipo(tipo));
   const meta = `<div class="card-meta"><p class="card-date">${fecha}</p><p class="card-kind ${tipo}-mark">${etiqueta}</p></div>`;
 
+  if (tipo === "bloqueado") {
+    return `<div class="card-inner locked-card"><div class="locked-symbol" aria-hidden="true">♥</div><p class="memory-label">UNA SORPRESA PARA TI</p><h2 class="card-title">${escapar(pagina.titulo)}</h2><p class="card-description">${escapar(pagina.descripcion)}</p></div>`;
+  }
+
   if (tipo === "foto") {
     return `<div class="card-inner photo-card">${meta}
       <div class="photo-wrap"><img class="photo" src="${escapar(pagina.contenido || "assets/fondo.jpg")}" alt="Recuerdo fotográfico"></div>
