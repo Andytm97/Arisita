@@ -3,13 +3,36 @@ FIRESTORE DATABASE → REGLAS
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /recuerdos/{document} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == "KSYoyWiYB4dChzlwVFAaWIyN0YJ3";
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == "KSYoyWiYB4dChzlwVFAaWIyN0YJ3";
     }
-    match /configuracion/{document} {
+
+    match /recuerdos/{recuerdoId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == "KSYoyWiYB4dChzlwVFAaWIyN0YJ3";
+      allow create, update, delete: if isAdmin();
+
+      match /respuestas/{respuestaId} {
+        allow read: if true;
+        allow create: if request.auth != null
+          && respuestaId == "aris"
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.keys().hasOnly(["ownerUid", "autor", "corazon", "nota", "updatedAt"]);
+        allow update: if request.auth != null
+          && respuestaId == "aris"
+          && (resource.data.ownerUid == request.auth.uid || isAdmin())
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.keys().hasOnly(["ownerUid", "autor", "corazon", "nota", "updatedAt"]);
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /configuracion/{documentoId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
@@ -21,7 +44,11 @@ service firebase.storage {
   match /b/{bucket}/o {
     match /aris/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == "KSYoyWiYB4dChzlwVFAaWIyN0YJ3";
+      allow create, update, delete: if request.auth != null
+        && request.auth.uid == "KSYoyWiYB4dChzlwVFAaWIyN0YJ3";
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

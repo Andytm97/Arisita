@@ -41,6 +41,7 @@
         <label class="field checkbox-field"><input id="destacado" name="destacado" type="checkbox"><span>Marcar como recuerdo destacado</span></label>
         <div class="form-actions"><button id="publishButton" class="primary-button" type="submit">Publicar recuerdo</button><button id="previewButton" class="secondary-button" type="button">Actualizar vista previa</button></div>
         <p id="formStatus" class="form-status" aria-live="polite"></p>
+        <div id="publishProgress" class="publish-progress" hidden><span></span></div>
       </form>
       <aside class="preview-panel"><div class="panel-heading"><div><p class="step-label">VISTA PREVIA</p><h2>Así lo verá ella</h2></div></div><div class="preview-stage"><article id="previewCard" class="memory-card memory-card--current admin-preview-card"></article></div></aside>
     </section>
@@ -59,7 +60,8 @@
       <p id="reunionStatus" class="form-status" aria-live="polite"></p>
     </section>
 
-    <section class="library-panel"><div class="panel-heading"><div><p class="step-label">PUBLICADOS</p><h2>Recuerdos en ARIS</h2></div><button id="refreshMemories" class="secondary-button" type="button">Actualizar</button></div><div id="memoryList" class="memory-list"></div><p class="storage-note">Los recuerdos están guardados en Firebase y aparecen en el álbum desde cualquier dispositivo.</p></section>
+    <section class="library-panel"><div class="panel-heading"><div><p class="step-label">PUBLICADOS</p><h2>Recuerdos en ARIS</h2></div><div class="library-actions"><button id="backupButton" class="secondary-button" type="button">Descargar copia</button><button id="refreshMemories" class="secondary-button" type="button">Actualizar</button></div></div><div id="memoryList" class="memory-list"></div><p class="storage-note">Los recuerdos están guardados en Firebase y aparecen en el álbum desde cualquier dispositivo.</p></section>
+    <section class="library-panel"><div class="panel-heading"><div><p class="step-label">RESPUESTAS DE ARIS</p><h2>Corazones y notas</h2></div></div><div id="responseList" class="memory-list"></div></section>
   </main>
   <script type="module" src="admin.js"></script>
 </body>

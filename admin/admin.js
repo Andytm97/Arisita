@@ -5,11 +5,11 @@ import {
   obtenerTodosLosRecuerdosFirebase, crearIdRecuerdo, guardarRecuerdoFirebase,
   borrarRecuerdoFirebase, subirArchivoFirebase, subirDataUrlFirebase,
   guardarPortadaFirebase, obtenerPortadaFirebase, restaurarPortadaFirebase,
-  guardarReencuentroFirebase, obtenerReencuentroFirebase
+  guardarReencuentroFirebase, obtenerReencuentroFirebase, obtenerRespuestasFirebase
 } from "../src/firebase/firebase-service.js";
 
-const MAX_IMAGE_EDGE = 1600;
-const JPEG_QUALITY = .78;
+const MAX_IMAGE_EDGE = 1280;
+const JPEG_QUALITY = .72;
 const loginView = document.getElementById("loginView");
 const adminView = document.getElementById("adminView");
 const loginForm = document.getElementById("loginForm");
@@ -24,6 +24,7 @@ let pendingCoverImage = "";
 let memories = [];
 let editingId = "";
 let previewMedia = {};
+const DRAFT_KEY = "aris-admin-current-draft-v2";
 
 const mediaInput = (name, label, accept, capture = "") => `<label class="field"><span>${label}</span><input name="${name}" type="file" accept="${accept}" ${capture} required></label>`;
 const imageInput = (name, label, required = true) => `<label class="field"><span>${label}${required ? "" : " (opcional)"}</span><input name="${name}" type="file" accept="image/*" ${required ? "required" : ""}></label>`;
@@ -59,17 +60,20 @@ async function initialiseAdmin() {
   renderFields();
   document.getElementById("fecha").value ||= new Date().toISOString().slice(0, 10);
   wireCover();
-  await Promise.all([loadMemories(), loadConfiguration()]);
+  await Promise.all([loadMemories(), loadConfiguration(), loadResponses()]);
+  restoreDraft();
   updatePreview();
 }
 
 tipo.addEventListener("change", () => { renderFields(); updatePreview(); });
 form.addEventListener("input", updatePreview);
+form.addEventListener("input", saveDraftSoon);
 form.addEventListener("change", updatePreview);
 form.addEventListener("submit", publishMemory);
 document.getElementById("previewButton").addEventListener("click", updatePreview);
 document.getElementById("resetForm").addEventListener("click", resetForm);
 document.getElementById("refreshMemories").addEventListener("click", loadMemories);
+document.getElementById("backupButton").addEventListener("click", exportBackup);
 
 function renderFields() { clearPreviewMedia(); fields.innerHTML = templates[tipo.value] || templates.texto; wireFilePreviews(); }
 function wireFilePreviews() {
@@ -104,6 +108,7 @@ async function publishMemory(event) {
   event.preventDefault();
   if (!form.reportValidity()) return;
   publishButton.disabled = true;
+  setProgress(8);
   setStatus("Subiendo archivos…");
   try {
     const id = editingId || crearIdRecuerdo();
@@ -111,24 +116,32 @@ async function publishMemory(event) {
     const existing = memories.find(memory => memory.id === editingId);
     const page = { ...(existing?.elementos?.[0] || {}), ...pageFromForm() };
     const uploadMap = { contenidoArchivo: "contenido", posterArchivo: "poster", portadaArchivo: "portada", miniaturaArchivo: "miniatura" };
-    for (const [inputName, target] of Object.entries(uploadMap)) {
+    const uploads = Object.entries(uploadMap);
+    let uploadIndex = 0;
+    for (const [inputName, target] of uploads) {
       const file = fd.get(inputName);
       if (!(file instanceof File) || !file.size) continue;
       if (file.type.startsWith("image/")) {
         const dataUrl = await compressImage(file);
-        page[target] = await subirDataUrlFirebase({ recuerdoId: id, campo: target, dataUrl });
-      } else page[target] = await subirArchivoFirebase({ recuerdoId: id, campo: target, archivo: file });
+        page[target] = await retry(() => subirDataUrlFirebase({ recuerdoId: id, campo: target, dataUrl }));
+      } else page[target] = await retry(() => subirArchivoFirebase({ recuerdoId: id, campo: target, archivo: file }));
+      uploadIndex += 1; setProgress(15 + Math.round((uploadIndex / uploads.length) * 65));
     }
     const rawDate = String(fd.get("fecha") || "");
     const element = { ...page, id: `${id}-elemento-1` };
     delete element.fecha;
-    await guardarRecuerdoFirebase({ ...(existing || {}), id, fecha: formatDate(rawDate), fechaISO: rawDate, titulo: String(fd.get("titulo")), destacado: fd.get("destacado") === "on", elementos: [element] });
+    setStatus("Guardando recuerdo…"); setProgress(88);
+    await retry(() => guardarRecuerdoFirebase({ ...(existing || {}), id, fecha: formatDate(rawDate), fechaISO: rawDate, titulo: String(fd.get("titulo")), destacado: fd.get("destacado") === "on", elementos: [element] }));
+    setProgress(100); localStorage.removeItem(DRAFT_KEY);
     setStatus(editingId ? "Recuerdo actualizado en el álbum." : "Recuerdo publicado. Ya está disponible en el álbum.");
     resetForm(false);
     await loadMemories();
   } catch (error) { console.error(error); setStatus(friendlyError(error), true); }
-  finally { publishButton.disabled = false; }
+  finally { publishButton.disabled = false; setTimeout(() => setProgress(0), 700); }
 }
+
+async function retry(operation, attempts = 2) { let error; for (let i = 0; i < attempts; i += 1) { try { return await operation(); } catch (caught) { error = caught; if (i + 1 < attempts) { setStatus("La conexión falló. Reintentando…"); await new Promise(resolve => setTimeout(resolve, 900)); } } } throw error; }
+function setProgress(value) { const bar = document.getElementById("publishProgress"); bar.hidden = value <= 0; bar.style.setProperty("--progress", `${value}%`); }
 
 async function loadMemories() {
   memoryList.innerHTML = '<div class="empty-state">Cargando recuerdos…</div>';
@@ -180,7 +193,13 @@ async function restoreCover() { if (!confirm("¿Restaurar la portada original?")
 async function loadConfiguration() { try { const [cover, reunion] = await Promise.all([obtenerPortadaFirebase(), obtenerReencuentroFirebase()]); document.getElementById("coverPreviewImage").src = cover?.contenido || "../assets/fondo.jpg"; document.getElementById("reunionDate").value = reunion?.fecha || "2026-10-09"; } catch (error) { setCoverStatus(friendlyError(error), true); } }
 async function saveReunion() { const value = document.getElementById("reunionDate").value; const output = document.getElementById("reunionStatus"); if (!value) { output.textContent = "Elige una fecha."; return; } output.textContent = "Guardando…"; try { await guardarReencuentroFirebase(value); output.textContent = "Fecha actualizada en el álbum."; } catch (error) { output.textContent = friendlyError(error); output.classList.add("is-error"); } }
 
-function resetForm(clearStatus = true) { editingId = ""; publishButton.textContent = "Publicar recuerdo"; form.reset(); document.getElementById("fecha").value = new Date().toISOString().slice(0, 10); renderFields(); updatePreview(); if (clearStatus) setStatus(""); }
+async function loadResponses() { const list = document.getElementById("responseList"); try { const responses = await obtenerRespuestasFirebase(); if (!responses.length) { list.innerHTML = '<div class="empty-state">Aris todavía no ha dejado ninguna nota.</div>'; return; } list.innerHTML = responses.map(response => { const memory = memories.find(item => item.id === response.recuerdoId); return `<article class="response-row"><h3>${response.corazon ? "♥ " : ""}${escapeHtml(memory?.titulo || "Recuerdo")}</h3><p>${escapeHtml(response.nota || "Ha reaccionado con un corazón.")}</p></article>`; }).join(""); } catch (error) { list.innerHTML = `<div class="empty-state">${escapeHtml(friendlyError(error))}</div>`; } }
+async function exportBackup() { try { const [allMemories, responses, cover, reunion] = await Promise.all([obtenerTodosLosRecuerdosFirebase(), obtenerRespuestasFirebase(), obtenerPortadaFirebase(), obtenerReencuentroFirebase()]); const blob = new Blob([JSON.stringify({ version: 3, exportedAt: new Date().toISOString(), recuerdos: allMemories, respuestas: responses, configuracion: { portada: cover, reencuentro: reunion } }, null, 2)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `aris-backup-${new Date().toISOString().slice(0,10)}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); } catch (error) { setStatus(friendlyError(error), true); } }
+let draftTimer;
+function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(() => { const values = {}; new FormData(form).forEach((value, key) => { if (typeof value === "string") values[key] = value; }); localStorage.setItem(DRAFT_KEY, JSON.stringify({ values, tipo: tipo.value })); }, 350); }
+function restoreDraft() { try { const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (!draft?.values) return; tipo.value = draft.tipo || "foto"; renderFields(); Object.entries(draft.values).forEach(([name, value]) => { const field = form.elements[name]; if (field && field.type !== "file") field.type === "checkbox" ? field.checked = value === "on" : field.value = value; }); updatePreview(); setStatus("He recuperado el borrador que estabas preparando."); } catch (_) {} }
+
+function resetForm(clearStatus = true) { editingId = ""; publishButton.textContent = "Publicar recuerdo"; form.reset(); document.getElementById("fecha").value = new Date().toISOString().slice(0, 10); renderFields(); updatePreview(); if (clearStatus) { localStorage.removeItem(DRAFT_KEY); setStatus(""); } }
 function formatDate(value) { if (!value) return ""; return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`)); }
 function labelFor(value) { return ({ foto: "Fotografía", texto: "Carta", video: "Vídeo", audio: "Nota de voz", spotify: "Spotify", youtube: "YouTube", ubicacion: "Lugar" })[value] || "Recuerdo"; }
 function setStatus(message, error = false) { formStatus.textContent = message; formStatus.classList.toggle("is-error", error); }

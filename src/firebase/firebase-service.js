@@ -5,6 +5,7 @@ import {
   browserLocalPersistence,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInAnonymously,
   signOut
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
 import {
@@ -15,6 +16,7 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
+  collectionGroup,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 import {
@@ -23,7 +25,8 @@ import {
   uploadBytes,
   uploadString,
   getDownloadURL,
-  deleteObject
+  deleteObject,
+  listAll
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
 import { FIREBASE_CONFIG, ADMIN_UID } from "./firebase-config.js";
 
@@ -55,6 +58,12 @@ export function cerrarSesion() {
 
 export function usuarioEsAdmin(user = auth.currentUser) {
   return Boolean(user && user.uid === ADMIN_UID);
+}
+
+export async function asegurarSesionAlbum() {
+  await prepararPersistenciaAuth();
+  if (!auth.currentUser) await signInAnonymously(auth);
+  return auth.currentUser;
 }
 
 export async function obtenerRecuerdosFirebase() {
@@ -104,7 +113,36 @@ export async function guardarRecuerdoFirebase(recuerdo) {
 
 export async function borrarRecuerdoFirebase(id) {
   if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  const archivos = await listAll(ref(storage, `aris/recuerdos/${id}`));
+  await Promise.allSettled(archivos.items.map(item => deleteObject(item)));
   await deleteDoc(doc(db, "recuerdos", id));
+}
+
+export async function obtenerRespuestaFirebase(recuerdoId) {
+  const snapshot = await getDoc(doc(db, "recuerdos", recuerdoId, "respuestas", "aris"));
+  return snapshot.exists() ? snapshot.data() : null;
+}
+
+export async function guardarRespuestaFirebase(recuerdoId, { corazon, nota }) {
+  const user = await asegurarSesionAlbum();
+  const referencia = doc(db, "recuerdos", recuerdoId, "respuestas", "aris");
+  const actual = await getDoc(referencia);
+  if (actual.exists() && actual.data().ownerUid !== user.uid && !usuarioEsAdmin(user)) {
+    throw new Error("Esta tarjeta ya tiene una respuesta desde otro dispositivo.");
+  }
+  await setDoc(referencia, {
+    ownerUid: actual.data()?.ownerUid || user.uid,
+    autor: "Aris",
+    corazon: Boolean(corazon),
+    nota: String(nota || "").slice(0, 600),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+}
+
+export async function obtenerRespuestasFirebase() {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  const snapshot = await getDocs(collectionGroup(db, "respuestas"));
+  return snapshot.docs.map(item => ({ recuerdoId: item.ref.parent.parent?.id || "", ...item.data() }));
 }
 
 function extensionSegura(nombre = "archivo", tipo = "") {
@@ -121,7 +159,7 @@ export async function subirArchivoFirebase({ recuerdoId, campo, archivo }) {
   const ext = extensionSegura(archivo.name, archivo.type);
   const ruta = `aris/recuerdos/${recuerdoId}/${campo}-${Date.now()}.${ext}`;
   const referencia = ref(storage, ruta);
-  await uploadBytes(referencia, archivo, { contentType: archivo.type || undefined });
+  await uploadBytes(referencia, archivo, { contentType: archivo.type || undefined, cacheControl: "public,max-age=31536000,immutable" });
   return getDownloadURL(referencia);
 }
 
@@ -132,7 +170,7 @@ export async function subirDataUrlFirebase({ recuerdoId, campo, dataUrl }) {
   const ext = extensionSegura("", tipo);
   const ruta = `aris/recuerdos/${recuerdoId}/${campo}-${Date.now()}.${ext}`;
   const referencia = ref(storage, ruta);
-  await uploadString(referencia, dataUrl, "data_url", { contentType: tipo });
+  await uploadString(referencia, dataUrl, "data_url", { contentType: tipo, cacheControl: "public,max-age=31536000,immutable" });
   return getDownloadURL(referencia);
 }
 

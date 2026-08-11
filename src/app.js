@@ -2,7 +2,7 @@ import { DEMO_DATA } from "./data/demo-data.js";
 import { normalizarContenido } from "./core/content-model.js";
 import { escapar, atributoSeguro, suavizarProgreso, formatearTiempo } from "./core/utils.js";
 import { renderTarjeta } from "./components/memory-renderer.js";
-import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase } from "./firebase/firebase-service.js";
+import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase, asegurarSesionAlbum, obtenerRespuestaFirebase, guardarRespuestaFirebase } from "./firebase/firebase-service.js";
 
 let data = DEMO_DATA;
 let paginas = [];
@@ -50,6 +50,7 @@ function precargarImagen(src) {
 }
 
 async function iniciar() {
+  asegurarSesionAlbum().catch(error => console.warn("Las respuestas no están disponibles.", error));
   let recuerdosFirebase = [];
   let portadaFirebase = null;
   let reencuentroFirebase = null;
@@ -116,6 +117,42 @@ function prepararAplicacion(contenido) {
 
 function cargarTarjeta(elemento, pagina) {
   elemento.innerHTML = renderTarjeta(pagina);
+  if (pagina?.recuerdoId) prepararRespuesta(elemento, pagina);
+}
+
+async function prepararRespuesta(elemento, pagina) {
+  const actions = document.createElement("div");
+  actions.className = "memory-response-actions";
+  actions.innerHTML = `<button type="button" class="response-heart" aria-label="Reaccionar con un corazón">♡</button><button type="button" class="response-note">Deja una nota</button>`;
+  elemento.appendChild(actions);
+  actions.addEventListener("pointerdown", event => event.stopPropagation());
+  let response = null;
+  try { response = await obtenerRespuestaFirebase(pagina.recuerdoId); } catch (_) {}
+  const heart = actions.querySelector(".response-heart");
+  if (response?.corazon) { heart.textContent = "♥"; heart.classList.add("is-active"); }
+  heart.addEventListener("click", async event => {
+    event.stopPropagation();
+    const active = !heart.classList.contains("is-active");
+    heart.classList.toggle("is-active", active); heart.textContent = active ? "♥" : "♡";
+    try { await guardarRespuestaFirebase(pagina.recuerdoId, { corazon: active, nota: response?.nota || "" }); response = { ...(response || {}), corazon: active }; }
+    catch (error) { heart.classList.toggle("is-active", !active); heart.textContent = active ? "♡" : "♥"; alert(error.message); }
+  });
+  actions.querySelector(".response-note").addEventListener("click", event => { event.stopPropagation(); abrirNota(pagina, response); });
+}
+
+function abrirNota(pagina, response) {
+  let modal = document.getElementById("responseModal");
+  if (!modal) {
+    modal = document.createElement("div"); modal.id = "responseModal"; modal.className = "response-modal";
+    modal.innerHTML = `<form class="response-sheet"><button class="response-close" type="button" aria-label="Cerrar">×</button><p class="response-kicker">UNA NOTA PARA ANDRÉS</p><h2>¿Qué quieres decir sobre este recuerdo?</h2><textarea maxlength="600" placeholder="Escribe aquí…"></textarea><button class="primary-response" type="submit">Enviar ♥</button><p class="response-status" aria-live="polite"></p></form>`;
+    document.body.appendChild(modal);
+    modal.querySelector(".response-close").addEventListener("click", () => modal.classList.remove("is-open"));
+    modal.addEventListener("click", event => { if (event.target === modal) modal.classList.remove("is-open"); });
+  }
+  const textarea = modal.querySelector("textarea"); textarea.value = response?.nota || "";
+  const form = modal.querySelector("form"); const status = modal.querySelector(".response-status");
+  form.onsubmit = async event => { event.preventDefault(); status.textContent = "Guardando…"; try { await guardarRespuestaFirebase(pagina.recuerdoId, { corazon: Boolean(response?.corazon), nota: textarea.value.trim() }); status.textContent = "Nota guardada ♥"; setTimeout(() => modal.classList.remove("is-open"), 500); } catch (error) { status.textContent = error.message; } };
+  modal.classList.add("is-open"); setTimeout(() => textarea.focus(), 200);
 }
 
 let tarjetaAnterior = document.getElementById("tarjetaAnterior");
