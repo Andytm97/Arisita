@@ -124,7 +124,10 @@ async function prepararRespuesta(elemento, pagina) {
   const actions = document.createElement("div");
   actions.className = "memory-response-actions";
   actions.innerHTML = `<button type="button" class="response-heart" aria-label="Reaccionar con un corazón">♡</button><button type="button" class="response-note">Deja una nota</button>`;
-  elemento.appendChild(actions);
+  const description = elemento.querySelector(".card-description, .spotify-description, .letter-signature");
+  const copy = elemento.querySelector(".card-copy, .spotify-player, .letter-body, .card-inner");
+  if (description) description.insertAdjacentElement("afterend", actions);
+  else copy?.appendChild(actions);
   actions.addEventListener("pointerdown", event => event.stopPropagation());
   let response = null;
   try { response = await obtenerRespuestaFirebase(pagina.recuerdoId); } catch (_) {}
