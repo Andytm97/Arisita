@@ -1742,6 +1742,17 @@ body.cover-gesture-settling .album {
 
 /* ARIS 1.3 · La portada usa la imagen elegida desde /admin */
 :root { --aris-cover-image: url("assets/fondo.jpg"); }
+.app-loading .background,
+.app-loading .background-shade,
+.app-loading .ambient,
+.app-loading .app {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+body:not(.app-loading) .app {
+  transition: opacity 180ms ease;
+}
 .cover-card {
   background-image:
     linear-gradient(180deg, rgba(8,7,10,.08), rgba(8,7,10,.18) 45%, rgba(8,7,10,.78)),

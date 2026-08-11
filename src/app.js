@@ -32,7 +32,22 @@ iniciar().catch((error) => {
   console.error("ARIS no pudo iniciar con los datos guardados.", error);
   data = normalizarContenido(DEMO_DATA, DEMO_DATA);
   prepararAplicacion(data);
+  revelarAplicacion();
 });
+
+function precargarImagen(src) {
+  if (!src) return Promise.resolve();
+  return new Promise(resolve => {
+    const image = new Image();
+    image.onload = resolve;
+    image.onerror = resolve;
+    image.src = src;
+  });
+}
+
+function revelarAplicacion() {
+  requestAnimationFrame(() => document.body.classList.remove("app-loading"));
+}
 
 async function iniciar() {
   let recuerdosFirebase = [];
@@ -59,7 +74,9 @@ async function iniciar() {
     recuerdos: recuerdosFirebase
   }, DEMO_DATA);
 
+  await precargarImagen(data.portada?.contenido);
   prepararAplicacion(data);
+  revelarAplicacion();
 }
 
 function actualizarCuentaAtras() {
