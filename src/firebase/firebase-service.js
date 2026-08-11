@@ -71,16 +71,28 @@ export function crearIdRecuerdo() {
   return doc(collection(db, "recuerdos")).id;
 }
 
+function limpiarValoresIndefinidos(value) {
+  if (Array.isArray(value)) return value.map(limpiarValoresIndefinidos);
+  if (value && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, limpiarValoresIndefinidos(item)])
+    );
+  }
+  return value;
+}
+
 export async function guardarRecuerdoFirebase(recuerdo) {
   if (!usuarioEsAdmin()) throw new Error("No autorizado.");
   const id = recuerdo.id || crearIdRecuerdo();
-  await setDoc(doc(db, "recuerdos", id), {
+  await setDoc(doc(db, "recuerdos", id), limpiarValoresIndefinidos({
     ...recuerdo,
     id,
     publicado: recuerdo.publicado !== false,
     updatedAt: serverTimestamp(),
     createdAt: recuerdo.createdAt || serverTimestamp()
-  }, { merge: true });
+  }), { merge: true });
   return id;
 }
 

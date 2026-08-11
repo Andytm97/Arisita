@@ -102,7 +102,9 @@ async function publishMemory(event) {
       } else page[target] = await subirArchivoFirebase({ recuerdoId: id, campo: target, archivo: file });
     }
     const rawDate = String(fd.get("fecha") || "");
-    await guardarRecuerdoFirebase({ ...(existing || {}), id, fecha: formatDate(rawDate), fechaISO: rawDate, titulo: String(fd.get("titulo")), destacado: fd.get("destacado") === "on", elementos: [{ ...page, id: `${id}-elemento-1`, fecha: undefined }] });
+    const element = { ...page, id: `${id}-elemento-1` };
+    delete element.fecha;
+    await guardarRecuerdoFirebase({ ...(existing || {}), id, fecha: formatDate(rawDate), fechaISO: rawDate, titulo: String(fd.get("titulo")), destacado: fd.get("destacado") === "on", elementos: [element] });
     setStatus(editingId ? "Recuerdo actualizado en el álbum." : "Recuerdo publicado. Ya está disponible en el álbum.");
     resetForm(false);
     await loadMemories();
