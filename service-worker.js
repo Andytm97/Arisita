@@ -1,4 +1,4 @@
-const CACHE_NAME = "aris-v4-cover-single-layer-20260811-v4";
+const CACHE_NAME = "aris-v4-notes-copy-20260811-v5";
 const CORE = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./src/app.js", "./src/firebase/firebase-config.js", "./src/firebase/firebase-service.js", "./src/core/utils.js", "./src/core/content-model.js",

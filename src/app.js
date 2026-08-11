@@ -29,7 +29,7 @@ const backgroundShade = document.querySelector(".background-shade");
 const album = document.querySelector(".album");
 let fechaReencuentro = "2026-10-09";
 let configGeneral = {};
-const paginaFinal = { id: "proximo-recuerdo", tipo: "proximo", titulo: "Aquí aparecerá el próximo recuerdo.", descripcion: "Cuando Andrés publique algo nuevo, lo encontrarás justo aquí." };
+const paginaFinal = { id: "proximo-recuerdo", tipo: "proximo", titulo: "Aquí aparecerá el próximo recuerdo.", descripcion: "Cuando tenga algo nuevo que contarte, aparecerá justo aquí." };
 const conPaginaFinal = items => [...items, paginaFinal];
 
 function prepararRecuerdosVisibles(items) {
@@ -161,7 +161,7 @@ async function prepararRespuesta(elemento, pagina) {
   const heart = actions.querySelector(".response-heart");
   const noteButton = actions.querySelector(".response-note");
   if (response?.corazon) { heart.textContent = "♥"; heart.classList.add("is-active"); }
-  if (response?.nota) noteButton.textContent = "Notas";
+  if (response?.nota) { noteButton.textContent = "Notas"; noteButton.classList.add("has-note"); }
   heart.addEventListener("click", async event => {
     event.stopPropagation();
     const active = !heart.classList.contains("is-active");
@@ -169,7 +169,7 @@ async function prepararRespuesta(elemento, pagina) {
     try { await guardarRespuestaFirebase(pagina.recuerdoId, { corazon: active, nota: response?.nota || "" }); response = { ...(response || {}), corazon: active }; }
     catch (error) { heart.classList.toggle("is-active", !active); heart.textContent = active ? "♡" : "♥"; alert(error.message); }
   });
-  noteButton.addEventListener("click", event => { event.stopPropagation(); abrirNota(pagina, response, saved => { response = saved; noteButton.textContent = saved.nota ? "Notas" : "Deja una nota"; }); });
+  noteButton.addEventListener("click", event => { event.stopPropagation(); abrirNota(pagina, response, saved => { response = saved; noteButton.textContent = saved.nota ? "Notas" : "Deja una nota"; noteButton.classList.toggle("has-note", Boolean(saved.nota)); }); });
 }
 
 function abrirNota(pagina, response, onSaved) {
