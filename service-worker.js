@@ -1,4 +1,4 @@
-const CACHE_NAME = "aris-v10-aroma-heart-intro-20260902-v1";
+const CACHE_NAME = "aris-v10-heart-audio-unlock-20260902-v2";
 const CORE = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./src/app.js", "./src/firebase/firebase-config.js", "./src/firebase/firebase-service.js", "./src/core/utils.js", "./src/core/content-model.js",

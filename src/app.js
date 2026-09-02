@@ -774,13 +774,13 @@ let modalMedia = null;
 let contextoMelodia = null;
 let indiceMelodiaFinal = 0;
 // Pequeño arpegio basado en la armonía inicial de “Aroma”: Gm · A♭ · B♭ · Cm7.
-const notasMelodiaFinal = [196, 233.08, 293.66, 392, 207.65, 261.63, 311.13, 415.3, 233.08, 293.66, 349.23, 466.16, 261.63, 311.13, 392, 466.16];
+const notasMelodiaFinal = [392, 466.16, 587.33, 783.99, 415.3, 523.25, 622.25, 830.61, 466.16, 587.33, 698.46, 932.33, 523.25, 622.25, 783.99, 932.33];
 
-function tocarNotaFinal(button) {
+async function tocarNotaFinal(button) {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!AudioContext) return;
-  contextoMelodia ||= new AudioContext();
-  contextoMelodia.resume?.();
+  contextoMelodia ||= new AudioContext({ latencyHint: "interactive" });
+  try { if (contextoMelodia.state !== "running") await contextoMelodia.resume(); } catch (_) { return; }
   const now = contextoMelodia.currentTime;
   const frequency = notasMelodiaFinal[indiceMelodiaFinal];
   const gain = contextoMelodia.createGain();
@@ -788,13 +788,11 @@ function tocarNotaFinal(button) {
   const warmth = contextoMelodia.createOscillator();
   tone.type = "sine"; warmth.type = "triangle";
   tone.frequency.setValueAtTime(frequency, now); warmth.frequency.setValueAtTime(frequency * 2, now);
-  gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(.16, now + .018); gain.gain.exponentialRampToValueAtTime(.0001, now + .62);
+  gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(.3, now + .012); gain.gain.exponentialRampToValueAtTime(.0001, now + .7);
   tone.connect(gain); warmth.connect(gain); gain.connect(contextoMelodia.destination);
-  tone.start(now); warmth.start(now); tone.stop(now + .65); warmth.stop(now + .65);
+  tone.start(now); warmth.start(now); tone.stop(now + .72); warmth.stop(now + .72);
   button.classList.remove("is-playing"); void button.offsetWidth; button.classList.add("is-playing");
   indiceMelodiaFinal = (indiceMelodiaFinal + 1) % notasMelodiaFinal.length;
-  const message = button.parentElement.querySelector(".final-heart-message");
-  if (indiceMelodiaFinal === 0) { message.textContent = "Siempre a tu lado ♥"; message.classList.add("is-complete"); setTimeout(() => { message.textContent = "Toca nuestro pequeño ritmo"; message.classList.remove("is-complete"); }, 2200); }
 }
 
 
