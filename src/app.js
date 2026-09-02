@@ -778,7 +778,7 @@ const notasMelodiaFinal = [
   311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 261.63, 261.63,
   311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 349.23, 349.23,
   311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 261.63, 261.63,
-  392, 349.23, 233.08, 392, 440, 523.25
+  392, 349.23, 233.08, 392, 440, 261.63
 ];
 
 function tocarNotaFinal(button) {
@@ -793,7 +793,7 @@ function tocarNotaFinal(button) {
     const tone = contextoMelodia.createOscillator();
     const warmth = contextoMelodia.createOscillator();
     tone.type = "sine"; warmth.type = "triangle";
-    tone.frequency.setValueAtTime(frequency, now); warmth.frequency.setValueAtTime(frequency * 2, now);
+    tone.frequency.setValueAtTime(frequency, now); warmth.frequency.setValueAtTime(frequency, now); warmth.detune.setValueAtTime(-7, now);
     gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(.42, now + .01); gain.gain.exponentialRampToValueAtTime(.0001, now + .68);
     tone.connect(gain); warmth.connect(gain); gain.connect(contextoMelodia.destination);
     tone.start(now); warmth.start(now); tone.stop(now + .7); warmth.stop(now + .7);
