@@ -16,7 +16,7 @@ export function renderTarjeta(pagina) {
   }
 
   if (tipo === "proximo") {
-    return `<div class="card-inner empty-album-card"><p class="memory-label">NUESTRO ÁLBUM</p><div class="empty-album-symbol" aria-hidden="true">♡</div><h2>${escapar(pagina.titulo)}</h2><p>${escapar(pagina.descripcion)}</p></div>`;
+    return `<div class="card-inner empty-album-card"><p class="memory-label">NUESTRO ÁLBUM</p><button class="empty-album-symbol final-melody-heart" type="button" data-final-heart aria-label="Tocar una nota">♡</button><span class="final-heart-message" aria-live="polite">Toca nuestro pequeño ritmo</span><h2>${escapar(pagina.titulo)}</h2><p>${escapar(pagina.descripcion)}</p></div>`;
   }
 
   if (tipo === "foto") {

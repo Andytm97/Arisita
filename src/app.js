@@ -771,6 +771,30 @@ let audioActivo = null;
 let botonAudioActivo = null;
 let frameAudio = 0;
 let modalMedia = null;
+let contextoMelodia = null;
+let indiceMelodiaFinal = 0;
+const notasMelodiaFinal = [329.63, 392, 440, 493.88, 440, 392, 329.63, 293.66, 329.63, 392, 440, 523.25, 493.88, 440, 392, 329.63];
+
+function tocarNotaFinal(button) {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  contextoMelodia ||= new AudioContext();
+  contextoMelodia.resume?.();
+  const now = contextoMelodia.currentTime;
+  const frequency = notasMelodiaFinal[indiceMelodiaFinal];
+  const gain = contextoMelodia.createGain();
+  const tone = contextoMelodia.createOscillator();
+  const warmth = contextoMelodia.createOscillator();
+  tone.type = "sine"; warmth.type = "triangle";
+  tone.frequency.setValueAtTime(frequency, now); warmth.frequency.setValueAtTime(frequency * 2, now);
+  gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(.16, now + .018); gain.gain.exponentialRampToValueAtTime(.0001, now + .62);
+  tone.connect(gain); warmth.connect(gain); gain.connect(contextoMelodia.destination);
+  tone.start(now); warmth.start(now); tone.stop(now + .65); warmth.stop(now + .65);
+  button.classList.remove("is-playing"); void button.offsetWidth; button.classList.add("is-playing");
+  indiceMelodiaFinal = (indiceMelodiaFinal + 1) % notasMelodiaFinal.length;
+  const message = button.parentElement.querySelector(".final-heart-message");
+  if (indiceMelodiaFinal === 0) { message.textContent = "Siempre a tu lado ♥"; message.classList.add("is-complete"); setTimeout(() => { message.textContent = "Toca nuestro pequeño ritmo"; message.classList.remove("is-complete"); }, 2200); }
+}
 
 
 function detenerAudio() {
@@ -978,6 +1002,8 @@ zonaTarjetas.addEventListener("pointerdown", evento => {
 }, true);
 
 zonaTarjetas.addEventListener("click", evento => {
+  const heart = evento.target.closest("[data-final-heart]");
+  if (heart) { evento.preventDefault(); evento.stopPropagation(); tocarNotaFinal(heart); return; }
   const navegadorGaleria = evento.target.closest("[data-gallery-direction]");
   if (navegadorGaleria) {
     evento.preventDefault(); evento.stopPropagation();
