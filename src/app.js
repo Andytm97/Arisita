@@ -773,26 +773,34 @@ let frameAudio = 0;
 let modalMedia = null;
 let contextoMelodia = null;
 let indiceMelodiaFinal = 0;
-// Pequeño arpegio basado en la armonía inicial de “Aroma”: Gm · A♭ · B♭ · Cm7.
-const notasMelodiaFinal = [392, 466.16, 587.33, 783.99, 415.3, 523.25, 622.25, 830.61, 466.16, 587.33, 698.46, 932.33, 523.25, 622.25, 783.99, 932.33];
+// Secuencia indicada por Andrés. Mi♭4, La♭4, Sol4, Do4 y Fa4; Si♭ baja a la octava 3.
+const notasMelodiaFinal = [
+  311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 261.63, 261.63,
+  311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 349.23, 349.23,
+  311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 261.63, 261.63,
+  392, 349.23, 233.08, 392, 440, 523.25
+];
 
-async function tocarNotaFinal(button) {
+function tocarNotaFinal(button) {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!AudioContext) return;
   contextoMelodia ||= new AudioContext({ latencyHint: "interactive" });
-  try { if (contextoMelodia.state !== "running") await contextoMelodia.resume(); } catch (_) { return; }
-  const now = contextoMelodia.currentTime;
   const frequency = notasMelodiaFinal[indiceMelodiaFinal];
-  const gain = contextoMelodia.createGain();
-  const tone = contextoMelodia.createOscillator();
-  const warmth = contextoMelodia.createOscillator();
-  tone.type = "sine"; warmth.type = "triangle";
-  tone.frequency.setValueAtTime(frequency, now); warmth.frequency.setValueAtTime(frequency * 2, now);
-  gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(.3, now + .012); gain.gain.exponentialRampToValueAtTime(.0001, now + .7);
-  tone.connect(gain); warmth.connect(gain); gain.connect(contextoMelodia.destination);
-  tone.start(now); warmth.start(now); tone.stop(now + .72); warmth.stop(now + .72);
-  button.classList.remove("is-playing"); void button.offsetWidth; button.classList.add("is-playing");
   indiceMelodiaFinal = (indiceMelodiaFinal + 1) % notasMelodiaFinal.length;
+  const reproducir = () => {
+    const now = contextoMelodia.currentTime;
+    const gain = contextoMelodia.createGain();
+    const tone = contextoMelodia.createOscillator();
+    const warmth = contextoMelodia.createOscillator();
+    tone.type = "sine"; warmth.type = "triangle";
+    tone.frequency.setValueAtTime(frequency, now); warmth.frequency.setValueAtTime(frequency * 2, now);
+    gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(.42, now + .01); gain.gain.exponentialRampToValueAtTime(.0001, now + .68);
+    tone.connect(gain); warmth.connect(gain); gain.connect(contextoMelodia.destination);
+    tone.start(now); warmth.start(now); tone.stop(now + .7); warmth.stop(now + .7);
+    button.classList.remove("is-playing"); void button.offsetWidth; button.classList.add("is-playing");
+  };
+  if (contextoMelodia.state === "running") reproducir();
+  else contextoMelodia.resume().then(reproducir).catch(() => {});
 }
 
 
@@ -997,12 +1005,12 @@ function configurarZoomFoto(image) {
 }
 
 zonaTarjetas.addEventListener("pointerdown", evento => {
+  const heart = evento.target.closest("[data-final-heart]");
+  if (heart) { evento.preventDefault(); evento.stopImmediatePropagation(); tocarNotaFinal(heart); return; }
   if (evento.target.closest("button, a, video, audio, [data-audio-seek]")) evento.stopPropagation();
 }, true);
 
 zonaTarjetas.addEventListener("click", evento => {
-  const heart = evento.target.closest("[data-final-heart]");
-  if (heart) { evento.preventDefault(); evento.stopPropagation(); tocarNotaFinal(heart); return; }
   const navegadorGaleria = evento.target.closest("[data-gallery-direction]");
   if (navegadorGaleria) {
     evento.preventDefault(); evento.stopPropagation();
