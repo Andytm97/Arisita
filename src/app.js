@@ -2,7 +2,7 @@ import { DEMO_DATA } from "./data/demo-data.js";
 import { normalizarContenido } from "./core/content-model.js";
 import { escapar, atributoSeguro, suavizarProgreso, formatearTiempo } from "./core/utils.js";
 import { renderTarjeta } from "./components/memory-renderer.js";
-import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase, obtenerConfiguracionGeneralFirebase, observarRecuerdosFirebase, asegurarSesionAlbum, obtenerRespuestaFirebase, obtenerRespuestasRecuerdosFirebase, guardarRespuestaFirebase } from "./firebase/firebase-service.js";
+import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase, obtenerConfiguracionGeneralFirebase, obtenerCalendarioFirebase, observarRecuerdosFirebase, asegurarSesionAlbum, obtenerRespuestaFirebase, obtenerRespuestasRecuerdosFirebase, guardarRespuestaFirebase } from "./firebase/firebase-service.js";
 
 let data = DEMO_DATA;
 let paginas = [];
@@ -33,6 +33,7 @@ const openRandomMemory = document.getElementById("openRandomMemory");
 const openFavorites = document.getElementById("openFavorites");
 let fechaReencuentro = "2026-10-09";
 let configGeneral = {};
+let mensajesCalendario = [];
 const paginaFinal = { id: "proximo-recuerdo", tipo: "proximo", titulo: "Aquí aparecerá el próximo recuerdo.", descripcion: "Cuando tenga algo nuevo que contarte, aparecerá justo aquí." };
 const conPaginaFinal = items => [...items, paginaFinal];
 function elegirPortada(configuracion) {
@@ -100,11 +101,12 @@ async function iniciar() {
       await Promise.all(precargas.map(precargarImagen));
       return portada ? { ...portada, contenido } : portada;
     });
-    [recuerdosFirebase, portadaFirebase, reencuentroFirebase, generalFirebase] = await Promise.all([
+    [recuerdosFirebase, portadaFirebase, reencuentroFirebase, generalFirebase, mensajesCalendario] = await Promise.all([
       obtenerRecuerdosFirebase(),
       portadaLista,
       obtenerReencuentroFirebase(),
-      obtenerConfiguracionGeneralFirebase()
+      obtenerConfiguracionGeneralFirebase(),
+      obtenerCalendarioFirebase()
     ]);
   } catch (error) {
     console.warn("Firebase no está disponible; ARIS mostrará el álbum vacío.", error);
@@ -124,12 +126,32 @@ async function iniciar() {
   }, DEMO_DATA);
 
   prepararAplicacion(data);
+  cargarFavoritos();
   revelarAplicacion();
+  setTimeout(mostrarMensajesDeHoy, 1900);
   let firstSnapshot = true;
   observarRecuerdosFirebase(items => { if (firstSnapshot) { firstSnapshot = false; return; } const updated = normalizarContenido({ ...data, recuerdos: prepararRecuerdosVisibles(items) }, DEMO_DATA); const previousCount = paginas.length; data = updated; paginas = conPaginaFinal(updated.paginas); crearIndicadores(); if (enAlbum) { paginaActual = Math.min(paginaActual, Math.max(0, paginas.length - 1)); mostrarPagina(); } if (paginas.length > previousCount) mostrarAvisoNuevoRecuerdo(); });
 }
 
 function mostrarAvisoNuevoRecuerdo() { const notice = document.createElement("div"); notice.className = "new-memory-toast"; notice.textContent = "Hay un recuerdo nuevo para ti ♥"; document.body.appendChild(notice); requestAnimationFrame(() => notice.classList.add("is-visible")); setTimeout(() => notice.remove(), 3200); }
+
+function fechaLocalISO(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
+function mostrarMensajesDeHoy() {
+  const hoy = fechaLocalISO();
+  const mensajes = mensajesCalendario.filter(mensaje => mensaje.anual ? mensaje.fecha?.slice(5) === hoy.slice(5) : mensaje.fecha === hoy);
+  if (!mensajes.length) return;
+  const sessionKey = `aris-calendar-${hoy}-${mensajes.map(item => item.id).join("-")}`;
+  try { if (sessionStorage.getItem(sessionKey)) return; sessionStorage.setItem(sessionKey, "shown"); } catch (_) {}
+  let index = 0;
+  const modal = document.createElement("div"); modal.className = "calendar-popup";
+  modal.innerHTML = `<article class="calendar-popup-card" role="dialog" aria-modal="true"><button class="calendar-popup-close" type="button" aria-label="Cerrar">×</button><div class="calendar-popup-heart" aria-hidden="true">♥</div><p class="calendar-popup-kicker">UN MENSAJE PARA HOY</p><h2></h2><p class="calendar-popup-text"></p><button class="calendar-popup-next" type="button"></button></article>`;
+  document.body.appendChild(modal);
+  const render = () => { const mensaje = mensajes[index]; modal.querySelector("h2").textContent = mensaje.titulo; modal.querySelector(".calendar-popup-text").textContent = mensaje.texto; modal.querySelector(".calendar-popup-next").textContent = index < mensajes.length - 1 ? `Ver el siguiente · ${index + 1}/${mensajes.length}` : "Guardar este momento ♥"; };
+  const close = () => { modal.classList.remove("is-open"); setTimeout(() => modal.remove(), 320); };
+  modal.querySelector(".calendar-popup-close").addEventListener("click", close);
+  modal.querySelector(".calendar-popup-next").addEventListener("click", () => { if (index < mensajes.length - 1) { index += 1; modal.querySelector(".calendar-popup-card").classList.add("is-changing"); setTimeout(() => { render(); modal.querySelector(".calendar-popup-card").classList.remove("is-changing"); }, 170); } else close(); });
+  render(); requestAnimationFrame(() => modal.classList.add("is-open"));
+}
 
 async function cargarFavoritos() {
   try {

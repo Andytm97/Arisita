@@ -216,6 +216,24 @@ export async function obtenerConfiguracionGeneralFirebase() {
   return snapshot.exists() ? snapshot.data() : null;
 }
 
+export async function obtenerCalendarioFirebase() {
+  const snapshot = await getDoc(doc(db, "configuracion", "calendario"));
+  return snapshot.exists() && Array.isArray(snapshot.data().mensajes) ? snapshot.data().mensajes : [];
+}
+
+export async function guardarCalendarioFirebase(mensajes) {
+  if (!usuarioEsAdmin()) throw new Error("No autorizado.");
+  const limpios = mensajes.map(mensaje => ({
+    id: String(mensaje.id || ""),
+    fecha: String(mensaje.fecha || ""),
+    titulo: String(mensaje.titulo || "").slice(0, 80),
+    texto: String(mensaje.texto || "").slice(0, 700),
+    anual: Boolean(mensaje.anual)
+  })).filter(mensaje => mensaje.id && /^\d{4}-\d{2}-\d{2}$/.test(mensaje.fecha) && mensaje.titulo && mensaje.texto);
+  await setDoc(doc(db, "configuracion", "calendario"), { mensajes: limpios, updatedAt: serverTimestamp() }, { merge: true });
+  return limpios;
+}
+
 function extensionSegura(nombre = "archivo", tipo = "") {
   const extension = nombre.includes(".") ? nombre.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g, "") : "";
   if (extension) return extension;

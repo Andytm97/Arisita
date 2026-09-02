@@ -7,7 +7,7 @@ import {
   guardarPortadaFirebase, actualizarGaleriaPortadasFirebase, guardarAjustesPortadaFirebase, obtenerPortadaFirebase, restaurarPortadaFirebase,
   guardarReencuentroFirebase, obtenerReencuentroFirebase, obtenerRespuestasFirebase,
   observarRespuestasFirebase, marcarRespuestaLeidaFirebase,
-  guardarConfiguracionGeneralFirebase, obtenerConfiguracionGeneralFirebase
+  guardarConfiguracionGeneralFirebase, obtenerConfiguracionGeneralFirebase, obtenerCalendarioFirebase, guardarCalendarioFirebase
 } from "../src/firebase/firebase-service.js";
 
 const MAX_IMAGE_EDGE = 1280;
@@ -29,6 +29,8 @@ let removedCoverImages = new Set();
 let memories = [];
 let editingId = "";
 let previewMedia = {};
+let calendarMessages = [];
+let calendarView = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 const DRAFT_KEY = "aris-admin-current-draft-v2";
 
 const mediaInput = (name, label, accept, capture = "") => `<label class="field"><span>${label}</span><input name="${name}" type="file" accept="${accept}" ${capture} required></label>`;
@@ -65,7 +67,7 @@ async function initialiseAdmin() {
   renderFields();
   document.getElementById("fecha").value ||= new Date().toISOString().slice(0, 10);
   wireCover();
-  await Promise.all([loadMemories(), loadConfiguration(), loadResponses()]);
+  await Promise.all([loadMemories(), loadConfiguration(), loadResponses(), loadCalendar()]);
   await loadCoverPresentation();
   restoreDraft();
   observarRespuestasFirebase(responses => renderResponses(responses));
@@ -83,6 +85,7 @@ document.getElementById("refreshMemories").addEventListener("click", loadMemorie
 document.getElementById("backupButton").addEventListener("click", exportBackup);
 document.getElementById("publicationMode").addEventListener("change", event => { document.getElementById("scheduleFields").hidden = event.target.value !== "programado"; });
 document.getElementById("saveSettings").addEventListener("click", saveSettings);
+initCalendar();
 initAccordion();
 initConnectionStatus();
 
@@ -268,7 +271,7 @@ async function saveReunion() { const value = document.getElementById("reunionDat
 async function loadResponses() { try { renderResponses(await obtenerRespuestasFirebase()); } catch (error) { document.getElementById("responseList").innerHTML = `<div class="empty-state">${escapeHtml(friendlyError(error))}</div>`; } }
 function renderResponses(responses) { const list = document.getElementById("responseList"); const unread = responses.filter(response => !response.leida).length; document.getElementById("metricReplies").textContent = unread; document.getElementById("responseSummary").textContent = unread ? `${unread} nuevas` : "Sin novedades"; if (!responses.length) { list.innerHTML = '<div class="empty-state">Aris todavía no ha dejado ninguna nota.</div>'; return; } list.innerHTML = responses.map(response => { const memory = memories.find(item => item.id === response.recuerdoId); return `<article class="response-row ${response.leida ? "" : "is-new"}"><h3>${response.corazon ? "♥ " : ""}${escapeHtml(memory?.titulo || "Recuerdo")}${response.leida ? "" : " · Nueva"}</h3><p>${escapeHtml(response.nota || "Ha reaccionado con un corazón.")}</p>${response.leida ? "" : `<button class="ghost-button" data-read-response="${response.recuerdoId}" type="button">Marcar como leída</button>`}</article>`; }).join(""); list.querySelectorAll("[data-read-response]").forEach(button => button.addEventListener("click", () => marcarRespuestaLeidaFirebase(button.dataset.readResponse))); }
 async function saveSettings() { const status = document.getElementById("settingsStatus"); status.textContent = "Guardando…"; try { await guardarConfiguracionGeneralFirebase({ nombre: document.getElementById("settingName").value.trim(), kicker: document.getElementById("settingKicker").value.trim(), titulo: document.getElementById("settingTitle").value.trim(), subtitulo: document.getElementById("settingSubtitle").value.trim() }); status.textContent = "Textos actualizados en el álbum."; } catch (error) { status.textContent = friendlyError(error); status.classList.add("is-error"); } }
-async function exportBackup() { try { const [allMemories, responses, cover, reunion] = await Promise.all([obtenerTodosLosRecuerdosFirebase(), obtenerRespuestasFirebase(), obtenerPortadaFirebase(), obtenerReencuentroFirebase()]); const blob = new Blob([JSON.stringify({ version: 3, exportedAt: new Date().toISOString(), recuerdos: allMemories, respuestas: responses, configuracion: { portada: cover, reencuentro: reunion } }, null, 2)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `aris-backup-${new Date().toISOString().slice(0,10)}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); } catch (error) { setStatus(friendlyError(error), true); } }
+async function exportBackup() { try { const [allMemories, responses, cover, reunion, calendar] = await Promise.all([obtenerTodosLosRecuerdosFirebase(), obtenerRespuestasFirebase(), obtenerPortadaFirebase(), obtenerReencuentroFirebase(), obtenerCalendarioFirebase()]); const blob = new Blob([JSON.stringify({ version: 4, exportedAt: new Date().toISOString(), recuerdos: allMemories, respuestas: responses, configuracion: { portada: cover, reencuentro: reunion, calendario: calendar } }, null, 2)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `aris-backup-${new Date().toISOString().slice(0,10)}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); } catch (error) { setStatus(friendlyError(error), true); } }
 let draftTimer;
 function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(() => { const values = {}; new FormData(form).forEach((value, key) => { if (typeof value === "string") values[key] = value; }); localStorage.setItem(DRAFT_KEY, JSON.stringify({ values, tipo: tipo.value })); }, 350); }
 function restoreDraft() { try { const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (!draft?.values) return; tipo.value = draft.tipo || "foto"; renderFields(); Object.entries(draft.values).forEach(([name, value]) => { const field = form.elements[name]; if (field && field.type !== "file") field.type === "checkbox" ? field.checked = value === "on" : field.value = value; }); updatePreview(); setStatus("He recuperado el borrador que estabas preparando."); } catch (_) {} }
@@ -288,5 +291,46 @@ function loadImage(src) { return new Promise((resolve, reject) => { const image 
 async function loadCoverPresentation() { const cover = await obtenerPortadaFirebase(); activeCoverImages = cover?.imagenes?.length ? cover.imagenes : (cover?.contenido ? [cover.contenido] : []); document.getElementById("coverMode").value = cover?.mode === "mosaic" ? "mosaic" : "random"; document.getElementById("coverSummary").textContent = activeCoverImages.length > 1 ? `${activeCoverImages.length} portadas · ${cover?.mode === "mosaic" ? "mosaico" : "aleatorias"}` : "Una portada"; updateCoverPreviewStyle(); }
 function getCoverAdjustments() { return { position: Number(document.getElementById("coverPosition").value), shade: Number(document.getElementById("coverShade").value), mode: document.getElementById("coverMode").value }; }
 function updateCoverPreviewStyle() { const image = document.getElementById("coverPreviewImage"); const shade = document.getElementById("coverPreviewShade"); const preview = image.parentElement; const values = getCoverAdjustments(); const sources = [...activeCoverImages.filter(url => !removedCoverImages.has(url)), ...pendingCoverImages]; image.style.objectPosition = `center ${values.position}%`; image.style.transform = "none"; image.style.filter = "none"; if (sources.length && !sources.includes(image.src)) image.src = sources[0]; let mosaic = preview.querySelector(".cover-preview-mosaic"); if (!mosaic) { mosaic = document.createElement("div"); mosaic.className = "cover-preview-mosaic"; preview.insertBefore(mosaic, image); } mosaic.replaceChildren(...(values.mode === "mosaic" ? sources.map(source => { const tile = document.createElement("img"); tile.src = source; tile.alt = ""; return tile; }) : [])); mosaic.hidden = values.mode !== "mosaic" || !sources.length; image.hidden = !mosaic.hidden; shade.style.background = `rgba(0,0,0,${values.shade / 100})`; }
+
+function localDateValue(date = new Date()) { const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, "0"); const day = String(date.getDate()).padStart(2, "0"); return `${year}-${month}-${day}`; }
+function initCalendar() {
+  document.getElementById("calendarDate").value = localDateValue();
+  document.getElementById("calendarPrevious").addEventListener("click", () => { calendarView = new Date(calendarView.getFullYear(), calendarView.getMonth() - 1, 1); renderCalendar(); });
+  document.getElementById("calendarNext").addEventListener("click", () => { calendarView = new Date(calendarView.getFullYear(), calendarView.getMonth() + 1, 1); renderCalendar(); });
+  document.getElementById("calendarForm").addEventListener("submit", saveCalendarMessage);
+  document.getElementById("cancelCalendarEdit").addEventListener("click", resetCalendarForm);
+  renderCalendar();
+}
+async function loadCalendar() { try { calendarMessages = await obtenerCalendarioFirebase(); renderCalendar(); renderCalendarMessages(); updateCalendarSummary(); } catch (error) { setCalendarStatus(friendlyError(error), true); } }
+function messageMatchesDay(message, iso) { return message.anual ? message.fecha.slice(5) === iso.slice(5) : message.fecha === iso; }
+function renderCalendar() {
+  const grid = document.getElementById("calendarGrid"); if (!grid) return;
+  document.getElementById("calendarMonth").textContent = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(calendarView);
+  grid.replaceChildren();
+  const firstOffset = (new Date(calendarView.getFullYear(), calendarView.getMonth(), 1).getDay() + 6) % 7;
+  const days = new Date(calendarView.getFullYear(), calendarView.getMonth() + 1, 0).getDate();
+  for (let index = 0; index < firstOffset; index += 1) { const blank = document.createElement("span"); blank.className = "calendar-blank"; grid.append(blank); }
+  const today = localDateValue(); const selected = document.getElementById("calendarDate").value;
+  for (let day = 1; day <= days; day += 1) {
+    const date = new Date(calendarView.getFullYear(), calendarView.getMonth(), day); const iso = localDateValue(date);
+    const button = document.createElement("button"); button.type = "button"; button.className = "calendar-day"; button.textContent = String(day); button.dataset.date = iso;
+    button.classList.toggle("is-today", iso === today); button.classList.toggle("is-selected", iso === selected); button.classList.toggle("has-message", calendarMessages.some(message => messageMatchesDay(message, iso)));
+    button.addEventListener("click", () => { document.getElementById("calendarDate").value = iso; renderCalendar(); }); grid.append(button);
+  }
+}
+async function saveCalendarMessage(event) {
+  event.preventDefault(); const idField = document.getElementById("calendarMessageId"); const date = document.getElementById("calendarDate").value; const title = document.getElementById("calendarTitle").value.trim(); const text = document.getElementById("calendarText").value.trim();
+  if (!date || !title || !text) return;
+  const message = { id: idField.value || (crypto.randomUUID?.() || `mensaje-${Date.now()}`), fecha: date, titulo: title, texto: text, anual: document.getElementById("calendarAnnual").checked };
+  const previous = [...calendarMessages]; const index = calendarMessages.findIndex(item => item.id === message.id); if (index >= 0) calendarMessages[index] = message; else calendarMessages.push(message);
+  setCalendarStatus("Guardando mensaje…");
+  try { calendarMessages = await guardarCalendarioFirebase(calendarMessages); resetCalendarForm(); renderCalendar(); renderCalendarMessages(); updateCalendarSummary(); setCalendarStatus("Mensaje programado para Aris ♥"); } catch (error) { calendarMessages = previous; setCalendarStatus(friendlyError(error), true); }
+}
+function editCalendarMessage(id) { const message = calendarMessages.find(item => item.id === id); if (!message) return; document.getElementById("calendarMessageId").value = message.id; document.getElementById("calendarDate").value = message.fecha; document.getElementById("calendarTitle").value = message.titulo; document.getElementById("calendarText").value = message.texto; document.getElementById("calendarAnnual").checked = message.anual; document.getElementById("saveCalendarMessage").textContent = "Guardar cambios"; document.getElementById("cancelCalendarEdit").hidden = false; const [year, month] = message.fecha.split("-").map(Number); calendarView = new Date(year, month - 1, 1); renderCalendar(); }
+async function deleteCalendarMessage(id) { if (!confirm("¿Eliminar este mensaje programado?")) return; const previous = [...calendarMessages]; calendarMessages = calendarMessages.filter(item => item.id !== id); try { calendarMessages = await guardarCalendarioFirebase(calendarMessages); renderCalendar(); renderCalendarMessages(); updateCalendarSummary(); setCalendarStatus("Mensaje eliminado."); } catch (error) { calendarMessages = previous; setCalendarStatus(friendlyError(error), true); } }
+function resetCalendarForm() { document.getElementById("calendarMessageId").value = ""; document.getElementById("calendarTitle").value = ""; document.getElementById("calendarText").value = ""; document.getElementById("calendarAnnual").checked = false; document.getElementById("saveCalendarMessage").textContent = "Programar mensaje"; document.getElementById("cancelCalendarEdit").hidden = true; }
+function renderCalendarMessages() { const list = document.getElementById("calendarMessageList"); if (!calendarMessages.length) { list.innerHTML = `<div class="empty-state">Todavía no hay mensajes programados.</div>`; return; } list.innerHTML = [...calendarMessages].sort((a, b) => a.fecha.localeCompare(b.fecha)).map(message => `<article class="calendar-message-row"><time>${escapeHtml(formatDate(message.fecha))}${message.anual ? " · Cada año" : ""}</time><h3>${escapeHtml(message.titulo)}</h3><p>${escapeHtml(message.texto)}</p><div><button class="ghost-button" type="button" data-calendar-edit="${message.id}">Editar</button><button class="ghost-button danger-button" type="button" data-calendar-delete="${message.id}">Eliminar</button></div></article>`).join(""); list.querySelectorAll("[data-calendar-edit]").forEach(button => button.addEventListener("click", () => editCalendarMessage(button.dataset.calendarEdit))); list.querySelectorAll("[data-calendar-delete]").forEach(button => button.addEventListener("click", () => deleteCalendarMessage(button.dataset.calendarDelete))); }
+function updateCalendarSummary() { document.getElementById("calendarSummary").textContent = calendarMessages.length ? `${calendarMessages.length} ${calendarMessages.length === 1 ? "mensaje" : "mensajes"}` : "Sin mensajes"; }
+function setCalendarStatus(message, error = false) { const status = document.getElementById("calendarStatus"); status.textContent = message; status.classList.toggle("is-error", error); }
 function initAccordion() { const sections = [...document.querySelectorAll(".dashboard-section")]; sections.forEach(section => section.addEventListener("toggle", () => { if (!section.open) return; sections.forEach(other => { if (other !== section) other.open = false; }); sessionStorage.setItem("aris-admin-section", section.dataset.section || ""); })); const remembered = sessionStorage.getItem("aris-admin-section"); if (remembered) document.querySelector(`[data-section="${remembered}"]`)?.setAttribute("open", ""); }
 function initConnectionStatus() { const output = document.getElementById("connectionStatus"); const update = () => { const online = navigator.onLine; output.classList.toggle("is-offline", !online); output.querySelector("span").textContent = online ? "Conectado" : "Sin conexión"; }; addEventListener("online", update); addEventListener("offline", update); update(); }
