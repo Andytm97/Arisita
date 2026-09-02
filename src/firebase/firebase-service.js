@@ -145,6 +145,15 @@ export async function obtenerRespuestaFirebase(recuerdoId) {
   return snapshot.exists() ? snapshot.data() : null;
 }
 
+export async function obtenerRespuestasRecuerdosFirebase(recuerdoIds = []) {
+  await asegurarSesionAlbum();
+  const respuestas = await Promise.all([...new Set(recuerdoIds)].filter(Boolean).map(async recuerdoId => {
+    const snapshot = await getDoc(doc(db, "recuerdos", recuerdoId, "respuestas", "aris"));
+    return snapshot.exists() ? { recuerdoId, ...snapshot.data() } : null;
+  }));
+  return respuestas.filter(Boolean);
+}
+
 export async function guardarRespuestaFirebase(recuerdoId, { corazon, nota }) {
   const user = await asegurarSesionAlbum();
   const referencia = doc(db, "recuerdos", recuerdoId, "respuestas", "aris");

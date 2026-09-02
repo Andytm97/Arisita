@@ -34,7 +34,7 @@ const DRAFT_KEY = "aris-admin-current-draft-v2";
 const mediaInput = (name, label, accept, capture = "") => `<label class="field"><span>${label}</span><input name="${name}" type="file" accept="${accept}" ${capture} required></label>`;
 const imageInput = (name, label, required = true) => `<label class="field"><span>${label}${required ? "" : " (opcional)"}</span><input name="${name}" type="file" accept="image/*" ${required ? "required" : ""}></label>`;
 const templates = {
-  foto: `${imageInput("contenidoArchivo", "Fotografía")}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
+  foto: `<label class="field"><span>Fotografías</span><input name="contenidoArchivo" type="file" accept="image/*" multiple required><small class="field-hint">Puedes seleccionar varias para crear una galería dentro del mismo recuerdo.</small></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
   texto: `<label class="field"><span>Texto de la carta</span><textarea name="texto" required></textarea></label><label class="field"><span>Firma</span><input name="firma" placeholder="Siempre contigo"></label>`,
   video: `${mediaInput("contenidoArchivo", "Vídeo", "video/*")} ${imageInput("posterArchivo", "Miniatura", false)}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
   audio: `${mediaInput("contenidoArchivo", "Audio", "audio/*", "capture")}<label class="field"><span>Duración visible</span><input name="duracion" placeholder="0:38"></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
@@ -93,6 +93,12 @@ function wireSpotifyLookup() { const input = fields.querySelector('[name="enlace
 async function cargarDatosSpotify(url) { const status = document.getElementById("spotifyLookupStatus"); if (!/^https:\/\/(open\.)?spotify\.com\//i.test(url)) { if (status) status.textContent = "Pega un enlace válido de Spotify."; return; } if (status) status.textContent = "Buscando carátula…"; try { const response = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`); if (!response.ok) throw new Error("No encontrada"); const info = await response.json(); if (info.thumbnail_url) previewMedia.portada = info.thumbnail_url; const title = form.elements.cancionTitulo; if (title && !title.value.trim() && info.title) title.value = info.title; const artist = form.elements.artista; if (artist && !artist.value.trim() && info.author_name) artist.value = info.author_name; if (status) status.textContent = info.thumbnail_url ? "Carátula encontrada automáticamente." : "Spotify no ha proporcionado una carátula."; updatePreview(); } catch (_) { if (status) status.textContent = "No he podido obtenerla. Puedes añadirla manualmente."; } }
 function wireFilePreviews() {
   fields.querySelectorAll('input[type="file"]').forEach(input => input.addEventListener("change", () => {
+    if (input.name === "contenidoArchivo" && tipo.value === "foto") {
+      (previewMedia.imagenes || []).forEach(value => { if (String(value).startsWith("blob:")) URL.revokeObjectURL(value); });
+      previewMedia.imagenes = [...(input.files || [])].map(file => URL.createObjectURL(file));
+      previewMedia.contenido = previewMedia.imagenes[0] || "";
+      updatePreview(); return;
+    }
     const file = input.files?.[0];
     if (!file) return;
     const target = ({ contenidoArchivo: "contenido", posterArchivo: "poster", portadaArchivo: "portada", miniaturaArchivo: "miniatura" })[input.name];
@@ -103,7 +109,7 @@ function wireFilePreviews() {
   }));
 }
 function clearPreviewMedia() {
-  Object.values(previewMedia).forEach(value => { if (String(value).startsWith("blob:")) URL.revokeObjectURL(value); });
+  Object.values(previewMedia).flatMap(value => Array.isArray(value) ? value : [value]).forEach(value => { if (String(value).startsWith("blob:")) URL.revokeObjectURL(value); });
   previewMedia = {};
 }
 function pageFromForm() {
@@ -132,8 +138,18 @@ async function publishMemory(event) {
     if (String(fd.get("tipo")) === "spotify" && !previewMedia.portada) await cargarDatosSpotify(String(fd.get("enlace") || "").trim());
     const page = { ...(existing?.elementos?.[0] || {}), ...pageFromForm() };
     const uploadMap = { contenidoArchivo: "contenido", posterArchivo: "poster", portadaArchivo: "portada", miniaturaArchivo: "miniatura" };
-    const uploads = Object.entries(uploadMap);
+    const uploads = Object.entries(uploadMap).filter(([inputName]) => !(inputName === "contenidoArchivo" && String(fd.get("tipo")) === "foto"));
     let uploadIndex = 0;
+    const photoFiles = String(fd.get("tipo")) === "foto" ? fd.getAll("contenidoArchivo").filter(file => file instanceof File && file.size) : [];
+    if (photoFiles.length) {
+      page.imagenes = [];
+      for (let index = 0; index < photoFiles.length; index += 1) {
+        const dataUrl = await compressImage(photoFiles[index]);
+        page.imagenes.push(await retry(() => subirDataUrlFirebase({ recuerdoId: id, campo: `foto-${index + 1}`, dataUrl })));
+        setProgress(15 + Math.round(((index + 1) / photoFiles.length) * 60));
+      }
+      page.contenido = page.imagenes[0];
+    }
     for (const [inputName, target] of uploads) {
       const file = fd.get(inputName);
       if (!(file instanceof File) || !file.size) continue;
@@ -194,6 +210,7 @@ function editMemory(id) {
   tipo.value = page.tipo || "texto";
   renderFields();
   previewMedia = Object.fromEntries(["contenido", "poster", "portada", "miniatura"].filter(key => page[key]).map(key => [key, page[key]]));
+  if (Array.isArray(page.imagenes) && page.imagenes.length) previewMedia.imagenes = [...page.imagenes];
   document.getElementById("fecha").value = memory.fechaISO || "";
   document.getElementById("titulo").value = memory.titulo || "";
   document.getElementById("destacado").checked = Boolean(memory.destacado);

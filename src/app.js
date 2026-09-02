@@ -2,7 +2,7 @@ import { DEMO_DATA } from "./data/demo-data.js";
 import { normalizarContenido } from "./core/content-model.js";
 import { escapar, atributoSeguro, suavizarProgreso, formatearTiempo } from "./core/utils.js";
 import { renderTarjeta } from "./components/memory-renderer.js";
-import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase, obtenerConfiguracionGeneralFirebase, observarRecuerdosFirebase, asegurarSesionAlbum, obtenerRespuestaFirebase, guardarRespuestaFirebase } from "./firebase/firebase-service.js";
+import { obtenerRecuerdosFirebase, obtenerPortadaFirebase, obtenerReencuentroFirebase, obtenerConfiguracionGeneralFirebase, observarRecuerdosFirebase, asegurarSesionAlbum, obtenerRespuestaFirebase, obtenerRespuestasRecuerdosFirebase, guardarRespuestaFirebase } from "./firebase/firebase-service.js";
 
 let data = DEMO_DATA;
 let paginas = [];
@@ -17,6 +17,7 @@ let movimientoX = 0;
 let movimientoY = 0;
 let ejeBloqueado = null;
 let paginaFondoPreparada = null;
+let favoritos = new Set();
 
 const zonaTarjetas = document.getElementById("zonaTarjetas");
 let tarjetaActual = document.getElementById("tarjetaActual");
@@ -27,6 +28,9 @@ const textoGesto = document.getElementById("textoGesto");
 const background = document.getElementById("background");
 const backgroundShade = document.querySelector(".background-shade");
 const album = document.querySelector(".album");
+const openMemoryExplorer = document.getElementById("openMemoryExplorer");
+const openRandomMemory = document.getElementById("openRandomMemory");
+const openFavorites = document.getElementById("openFavorites");
 let fechaReencuentro = "2026-10-09";
 let configGeneral = {};
 const paginaFinal = { id: "proximo-recuerdo", tipo: "proximo", titulo: "Aquí aparecerá el próximo recuerdo.", descripcion: "Cuando tenga algo nuevo que contarte, aparecerá justo aquí." };
@@ -60,6 +64,7 @@ iniciar().catch((error) => {
   console.error("ARIS no pudo iniciar con los datos guardados.", error);
   data = normalizarContenido(DEMO_DATA, DEMO_DATA);
   prepararAplicacion(data);
+  cargarFavoritos();
   revelarAplicacion();
 });
 
@@ -126,6 +131,45 @@ async function iniciar() {
 
 function mostrarAvisoNuevoRecuerdo() { const notice = document.createElement("div"); notice.className = "new-memory-toast"; notice.textContent = "Hay un recuerdo nuevo para ti ♥"; document.body.appendChild(notice); requestAnimationFrame(() => notice.classList.add("is-visible")); setTimeout(() => notice.remove(), 3200); }
 
+async function cargarFavoritos() {
+  try {
+    const ids = paginas.map(pagina => pagina.recuerdoId).filter(Boolean);
+    const respuestas = await obtenerRespuestasRecuerdosFirebase(ids);
+    favoritos = new Set(respuestas.filter(respuesta => respuesta.corazon).map(respuesta => respuesta.recuerdoId));
+    openFavorites?.classList.toggle("has-favorites", favoritos.size > 0);
+  } catch (_) {}
+}
+
+function miniaturaPagina(pagina) {
+  if (pagina.tipo === "foto") return pagina.imagenes?.[0] || pagina.contenido || "";
+  if (pagina.tipo === "spotify") return pagina.portada || pagina.caratula || "";
+  if (pagina.tipo === "video") return pagina.poster || "";
+  if (pagina.tipo === "youtube") return pagina.miniatura || "";
+  return "";
+}
+
+function abrirExplorador(soloFavoritos = false) {
+  document.getElementById("memoryExplorer")?.remove();
+  const disponibles = paginas.map((pagina, index) => ({ pagina, index })).filter(({ pagina }) => pagina.tipo !== "proximo" && (!soloFavoritos || favoritos.has(pagina.recuerdoId)));
+  const modal = document.createElement("div");
+  modal.id = "memoryExplorer";
+  modal.className = "memory-explorer";
+  modal.innerHTML = `<section class="memory-explorer-sheet" role="dialog" aria-modal="true" aria-label="${soloFavoritos ? "Favoritos de Aris" : "Nuestros recuerdos"}"><header><div><p>${soloFavoritos ? "LOS QUE MÁS TE GUSTAN" : "NUESTRO ÁLBUM"}</p><h2>${soloFavoritos ? "Favoritos de Aris" : "Todos nuestros recuerdos"}</h2></div><button type="button" class="memory-explorer-close" aria-label="Cerrar">×</button></header><div class="memory-explorer-grid">${disponibles.length ? disponibles.map(({ pagina, index }) => { const miniatura = miniaturaPagina(pagina); return `<button type="button" class="memory-explorer-item" data-memory-index="${index}">${miniatura ? `<img src="${atributoSeguro(miniatura)}" alt="">` : `<span class="memory-explorer-symbol">${pagina.tipo === "texto" ? "“" : "♥"}</span>`}<span><strong>${escapar(pagina.titulo || "Un recuerdo")}</strong><small>${escapar(pagina.fecha || "")}</small></span></button>`; }).join("") : `<div class="memory-explorer-empty">${soloFavoritos ? "Aquí aparecerán los recuerdos a los que des corazón." : "Todavía no hay recuerdos para mostrar."}</div>`}</div></section>`;
+  document.body.appendChild(modal);
+  const cerrar = () => { modal.classList.remove("is-open"); setTimeout(() => modal.remove(), 260); };
+  modal.querySelector(".memory-explorer-close").addEventListener("click", cerrar);
+  modal.addEventListener("click", event => { if (event.target === modal) cerrar(); });
+  modal.querySelectorAll("[data-memory-index]").forEach(button => button.addEventListener("click", () => { paginaActual = Number(button.dataset.memoryIndex); mostrarPagina({ instantaneo: true }); cerrar(); }));
+  requestAnimationFrame(() => modal.classList.add("is-open"));
+}
+
+function abrirRecuerdoSorpresa() {
+  const indices = paginas.map((pagina, index) => pagina.tipo !== "proximo" ? index : -1).filter(index => index >= 0 && index !== paginaActual);
+  if (!indices.length) return;
+  paginaActual = indices[Math.floor(Math.random() * indices.length)];
+  mostrarPagina();
+}
+
 function actualizarCuentaAtras() {
   const pie = document.getElementById("cuentaAtras");
   if (!pie) return;
@@ -180,13 +224,13 @@ async function prepararRespuesta(elemento, pagina) {
   try { response = await obtenerRespuestaFirebase(pagina.recuerdoId); } catch (_) {}
   const heart = actions.querySelector(".response-heart");
   const noteButton = actions.querySelector(".response-note");
-  if (response?.corazon) { heart.textContent = "♥"; heart.classList.add("is-active"); }
+  if (response?.corazon) { heart.textContent = "♥"; heart.classList.add("is-active"); favoritos.add(pagina.recuerdoId); }
   if (response?.nota) { noteButton.textContent = "Notas"; noteButton.classList.add("has-note"); }
   heart.addEventListener("click", async event => {
     event.stopPropagation();
     const active = !heart.classList.contains("is-active");
     heart.classList.toggle("is-active", active); heart.textContent = active ? "♥" : "♡";
-    try { await guardarRespuestaFirebase(pagina.recuerdoId, { corazon: active, nota: response?.nota || "" }); response = { ...(response || {}), corazon: active }; }
+    try { await guardarRespuestaFirebase(pagina.recuerdoId, { corazon: active, nota: response?.nota || "" }); response = { ...(response || {}), corazon: active }; active ? favoritos.add(pagina.recuerdoId) : favoritos.delete(pagina.recuerdoId); openFavorites?.classList.toggle("has-favorites", favoritos.size > 0); }
     catch (error) { heart.classList.toggle("is-active", !active); heart.textContent = active ? "♡" : "♥"; alert(error.message); }
   });
   noteButton.addEventListener("click", event => { event.stopPropagation(); abrirNota(pagina, response, saved => { response = saved; noteButton.textContent = saved.nota ? "Notas" : "Deja una nota"; noteButton.classList.toggle("has-note", Boolean(saved.nota)); }); });
@@ -863,6 +907,21 @@ function abrirFoto(ruta, titulo = "Recuerdo fotográfico") {
   requestAnimationFrame(() => modalMedia?.classList.add("is-open"));
   modalMedia.querySelector(".media-modal-close")?.addEventListener("click", cerrarModalMedia);
   modalMedia.addEventListener("click", evento => { if (evento.target === modalMedia) cerrarModalMedia(); });
+  configurarZoomFoto(modalMedia.querySelector(".photo-modal-panel>img"));
+}
+
+function configurarZoomFoto(image) {
+  if (!image) return;
+  let scale = 1, x = 0, y = 0, lastDistance = 0;
+  const pointers = new Map();
+  const apply = (animate = false) => { image.style.transition = animate ? "transform 220ms ease" : "none"; image.style.transform = `translate3d(${x}px,${y}px,0) scale(${scale})`; };
+  const reset = () => { scale = 1; x = 0; y = 0; apply(true); };
+  image.addEventListener("dblclick", event => { event.preventDefault(); if (scale > 1) reset(); else { scale = 2.5; x = y = 0; apply(true); } });
+  image.addEventListener("wheel", event => { event.preventDefault(); scale = Math.max(1, Math.min(4, scale + (event.deltaY < 0 ? .35 : -.35))); if (scale === 1) x = y = 0; apply(); }, { passive: false });
+  image.addEventListener("pointerdown", event => { image.setPointerCapture?.(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); lastDistance = 0; });
+  image.addEventListener("pointermove", event => { const previous = pointers.get(event.pointerId); if (!previous) return; pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); const points = [...pointers.values()]; if (points.length >= 2) { const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y); if (lastDistance) scale = Math.max(1, Math.min(4, scale * distance / lastDistance)); lastDistance = distance; } else { const dx = event.clientX - previous.x, dy = event.clientY - previous.y; if (scale > 1) { x += dx; y += dy; } else if (dy > 0 || y > 0) y = Math.max(0, y + dy); } apply(); });
+  const finish = event => { pointers.delete(event.pointerId); lastDistance = 0; if (!pointers.size && scale === 1) { if (y > 105) cerrarModalMedia(); else reset(); } };
+  image.addEventListener("pointerup", finish); image.addEventListener("pointercancel", finish);
 }
 
 zonaTarjetas.addEventListener("pointerdown", evento => {
@@ -870,6 +929,17 @@ zonaTarjetas.addEventListener("pointerdown", evento => {
 }, true);
 
 zonaTarjetas.addEventListener("click", evento => {
+  const navegadorGaleria = evento.target.closest("[data-gallery-direction]");
+  if (navegadorGaleria) {
+    evento.preventDefault(); evento.stopPropagation();
+    const galeria = navegadorGaleria.closest("[data-gallery-images]");
+    let imagenes = []; try { imagenes = JSON.parse(galeria.dataset.galleryImages || "[]"); } catch (_) {}
+    if (!imagenes.length) return;
+    const indice = (Number(galeria.dataset.galleryIndex || 0) + Number(navegadorGaleria.dataset.galleryDirection) + imagenes.length) % imagenes.length;
+    galeria.dataset.galleryIndex = String(indice); galeria.dataset.photoExpand = imagenes[indice];
+    galeria.querySelector(".photo").src = imagenes[indice]; galeria.querySelector(".photo-gallery-count").textContent = `${indice + 1} / ${imagenes.length}`;
+    return;
+  }
   const foto = evento.target.closest("[data-photo-expand]");
   if (foto && Math.abs(movimientoX) < 10 && Math.abs(movimientoY) < 10) {
     evento.preventDefault();
@@ -888,6 +958,9 @@ zonaTarjetas.addEventListener("click", evento => {
 });
 
 zonaTarjetas.addEventListener("keydown", evento => { const foto = evento.target.closest("[data-photo-expand]"); if (foto && (evento.key === "Enter" || evento.key === " ")) { evento.preventDefault(); abrirFoto(foto.dataset.photoExpand, foto.dataset.photoTitle); } });
+openMemoryExplorer?.addEventListener("click", () => abrirExplorador(false));
+openRandomMemory?.addEventListener("click", abrirRecuerdoSorpresa);
+openFavorites?.addEventListener("click", () => abrirExplorador(true));
 
 zonaTarjetas.addEventListener("pointerdown", iniciarSeekAudio, true);
 zonaTarjetas.addEventListener("pointermove", moverSeekAudio, { passive: false, capture: true });

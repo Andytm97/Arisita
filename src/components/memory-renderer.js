@@ -20,8 +20,11 @@ export function renderTarjeta(pagina) {
   }
 
   if (tipo === "foto") {
+    const imagenes = (Array.isArray(pagina.imagenes) && pagina.imagenes.length ? pagina.imagenes : [pagina.contenido || "assets/fondo.jpg"]).filter(Boolean);
+    const primera = imagenes[0] || "assets/fondo.jpg";
+    const galeria = atributoSeguro(JSON.stringify(imagenes));
     return `<div class="card-inner photo-card">${meta}
-      <div class="photo-wrap photo-expand" data-photo-expand="${atributoSeguro(pagina.contenido || "assets/fondo.jpg")}" data-photo-title="${atributoSeguro(pagina.titulo || "Recuerdo fotográfico")}" role="button" tabindex="0" aria-label="Ver fotografía en grande"><img class="photo" src="${escapar(pagina.contenido || "assets/fondo.jpg")}" alt="Recuerdo fotográfico"></div>
+      <div class="photo-wrap photo-expand" data-photo-expand="${atributoSeguro(primera)}" data-photo-title="${atributoSeguro(pagina.titulo || "Recuerdo fotográfico")}" data-gallery-images="${galeria}" data-gallery-index="0" role="button" tabindex="0" aria-label="Ver fotografía en grande"><img class="photo" src="${atributoSeguro(primera)}" alt="Recuerdo fotográfico">${imagenes.length > 1 ? `<button class="photo-gallery-nav is-prev" type="button" data-gallery-direction="-1" aria-label="Foto anterior">‹</button><button class="photo-gallery-nav is-next" type="button" data-gallery-direction="1" aria-label="Foto siguiente">›</button><span class="photo-gallery-count">1 / ${imagenes.length}</span>` : ""}</div>
       <div class="card-copy"><h2 class="card-title">${escapar(pagina.titulo || pagina.texto || "Un recuerdo contigo")}</h2><p class="card-description">${escapar(pagina.descripcion || "")}</p></div>
     </div>`;
   }
