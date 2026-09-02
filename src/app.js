@@ -18,6 +18,7 @@ let movimientoY = 0;
 let ejeBloqueado = null;
 let paginaFondoPreparada = null;
 let favoritos = new Set();
+const colaNavegacion = [];
 
 const zonaTarjetas = document.getElementById("zonaTarjetas");
 let tarjetaActual = document.getElementById("tarjetaActual");
@@ -221,11 +222,22 @@ function prepararAplicacion(contenido) {
   portada = { ...(data.portada || DEMO_DATA.portada) };
   paginas = conPaginaFinal(Array.isArray(data.paginas) ? data.paginas : []);
   crearIndicadores();
+  precargarRecuerdosCercanos(indiceUltimoRecuerdo());
   mostrarPortada();
 }
 
 function indiceUltimoRecuerdo() {
   return Math.max(0, paginas.length - 2);
+}
+
+function imagenesDePagina(pagina) {
+  if (!pagina) return [];
+  if (pagina.tipo === "foto") return (pagina.imagenes?.length ? pagina.imagenes : [pagina.contenido]).filter(Boolean);
+  return [pagina.poster, pagina.miniatura, pagina.portada].filter(Boolean);
+}
+
+function precargarRecuerdosCercanos(indice) {
+  [-2, -1, 1, 2].flatMap(offset => imagenesDePagina(paginas[indice + offset])).forEach(src => precargarImagen(src));
 }
 
 function cargarTarjeta(elemento, pagina) {
@@ -537,19 +549,19 @@ function solicitarArrastre() {
 }
 
 function iniciarGesto(evento) {
-  if (bloqueado || evento.button > 0) return;
+  if ((bloqueado && !enAlbum) || evento.button > 0) return;
   pointerActivo = true;
   ejeBloqueado = null;
   inicioX = ultimaX = evento.clientX;
   inicioY = ultimaY = evento.clientY;
   movimientoX = movimientoY = velocidadX = velocidadY = 0;
   inicioTiempo = ultimoTiempo = performance.now();
-  tarjetas.forEach(t => t.classList.add("is-dragging"));
+  if (!bloqueado) tarjetas.forEach(t => t.classList.add("is-dragging"));
   zonaTarjetas.setPointerCapture?.(evento.pointerId);
 }
 
 function moverGesto(evento) {
-  if (!pointerActivo || bloqueado) return;
+  if (!pointerActivo || (bloqueado && !enAlbum)) return;
   const ahora = performance.now();
   movimientoX = evento.clientX - inicioX;
   movimientoY = evento.clientY - inicioY;
@@ -566,17 +578,29 @@ function moverGesto(evento) {
   }
   if ((enAlbum && ejeBloqueado === "x") || (!enAlbum && ejeBloqueado === "y")) {
     evento.preventDefault();
-    solicitarArrastre();
+    if (!bloqueado) solicitarArrastre();
   }
 }
 
 function terminarGesto(evento) {
   if (!pointerActivo) return;
+  const navegacionOcupada = bloqueado && enAlbum;
   pointerActivo = false;
   if (frameArrastre) cancelAnimationFrame(frameArrastre);
   frameArrastre = 0;
-  tarjetas.forEach(t => t.classList.remove("is-dragging", "is-active-neighbor"));
+  if (!navegacionOcupada) tarjetas.forEach(t => t.classList.remove("is-dragging", "is-active-neighbor"));
   zonaTarjetas.releasePointerCapture?.(evento.pointerId);
+
+  if (navegacionOcupada) {
+    const ancho = zonaTarjetas.clientWidth;
+    const rapido = Math.abs(movimientoX) > Math.min(62, ancho * .16) || (Math.abs(velocidadX) > .42 && Math.abs(movimientoX) > 18);
+    if (rapido) {
+      const direccion = movimientoX < 0 ? 1 : -1;
+      const proyectada = paginaActual + colaNavegacion.reduce((total, item) => total + item, 0) + direccion;
+      if (proyectada >= 0 && proyectada < paginas.length) colaNavegacion.push(direccion);
+    }
+    return;
+  }
 
   if (!enAlbum) {
     const completar = movimientoY < -68 || (velocidadY < -.42 && movimientoY < -24);
@@ -688,14 +712,14 @@ function esperarFinTransicion(elemento, limite = 720) {
 }
 
 async function cambiarPagina(direccion, velocidad = 0) {
-  if (bloqueado) return;
+  if (bloqueado) { colaNavegacion.push(direccion); return; }
   detenerAudio();
   const objetivo = paginaActual + direccion;
   if (objetivo < 0 || objetivo >= paginas.length) return resetVisual();
 
   bloqueado = true;
   const salida = direccion > 0 ? -1 : 1;
-  const duracion = Math.max(300, 470 - Math.min(140, Math.abs(velocidad) * 100));
+  const duracion = Math.max(175, 255 - Math.min(80, Math.abs(velocidad) * 70));
   tarjetas.forEach(t => t.style.setProperty("--swipe-duration", `${duracion}ms`));
 
   const entrante = direccion > 0 ? tarjetaSiguiente : tarjetaAnterior;
@@ -735,8 +759,11 @@ async function cambiarPagina(direccion, velocidad = 0) {
   actualizarIndicadores();
 
   resetVisual(true);
+  precargarRecuerdosCercanos(paginaActual);
   tarjetas.forEach(t => t.style.removeProperty("--swipe-duration"));
   bloqueado = false;
+  const siguiente = colaNavegacion.shift();
+  if (siguiente) requestAnimationFrame(() => cambiarPagina(siguiente, .9));
 }
 
 
