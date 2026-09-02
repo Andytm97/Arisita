@@ -16,7 +16,6 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
-  collectionGroup,
   onSnapshot,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
@@ -165,12 +164,32 @@ export async function guardarRespuestaFirebase(recuerdoId, { corazon, nota }) {
 
 export async function obtenerRespuestasFirebase() {
   if (!usuarioEsAdmin()) throw new Error("No autorizado.");
-  const snapshot = await getDocs(collectionGroup(db, "respuestas"));
-  return snapshot.docs.map(item => ({ recuerdoId: item.ref.parent.parent?.id || "", ...item.data() }));
+  const recuerdos = await getDocs(collection(db, "recuerdos"));
+  const respuestas = await Promise.all(recuerdos.docs.map(async recuerdo => {
+    const respuesta = await getDoc(doc(db, "recuerdos", recuerdo.id, "respuestas", "aris"));
+    return respuesta.exists() ? { id: respuesta.id, recuerdoId: recuerdo.id, ...respuesta.data() } : null;
+  }));
+  return respuestas.filter(Boolean);
 }
 
 export function observarRespuestasFirebase(callback) {
-  return onSnapshot(collectionGroup(db, "respuestas"), snapshot => callback(snapshot.docs.map(item => ({ id: item.id, recuerdoId: item.ref.parent.parent?.id || "", ...item.data() }))));
+  let cancelarRespuestas = [];
+  const valores = new Map();
+  const cancelarRecuerdos = onSnapshot(collection(db, "recuerdos"), snapshot => {
+    cancelarRespuestas.forEach(cancelar => cancelar());
+    cancelarRespuestas = [];
+    valores.clear();
+    if (!snapshot.docs.length) { callback([]); return; }
+    snapshot.docs.forEach(recuerdo => {
+      const cancelar = onSnapshot(doc(db, "recuerdos", recuerdo.id, "respuestas", "aris"), respuesta => {
+        if (respuesta.exists()) valores.set(recuerdo.id, { id: respuesta.id, recuerdoId: recuerdo.id, ...respuesta.data() });
+        else valores.delete(recuerdo.id);
+        callback([...valores.values()]);
+      });
+      cancelarRespuestas.push(cancelar);
+    });
+  });
+  return () => { cancelarRecuerdos(); cancelarRespuestas.forEach(cancelar => cancelar()); };
 }
 
 export async function marcarRespuestaLeidaFirebase(recuerdoId) {
