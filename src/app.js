@@ -773,7 +773,8 @@ let frameAudio = 0;
 let modalMedia = null;
 let contextoMelodia = null;
 let indiceMelodiaFinal = 0;
-const notasMelodiaFinal = [329.63, 392, 440, 493.88, 440, 392, 329.63, 293.66, 329.63, 392, 440, 523.25, 493.88, 440, 392, 329.63];
+// Pequeño arpegio basado en la armonía inicial de “Aroma”: Gm · A♭ · B♭ · Cm7.
+const notasMelodiaFinal = [196, 233.08, 293.66, 392, 207.65, 261.63, 311.13, 415.3, 233.08, 293.66, 349.23, 466.16, 261.63, 311.13, 392, 466.16];
 
 function tocarNotaFinal(button) {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
