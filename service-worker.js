@@ -1,4 +1,4 @@
-const CACHE_NAME = "aris-v10-heart-octaves-20260902-v4";
+const CACHE_NAME = "aris-v10-heart-final-phrase-20260902-v5";
 const CORE = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./src/app.js", "./src/firebase/firebase-config.js", "./src/firebase/firebase-service.js", "./src/core/utils.js", "./src/core/content-model.js",

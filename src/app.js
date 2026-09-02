@@ -773,12 +773,12 @@ let frameAudio = 0;
 let modalMedia = null;
 let contextoMelodia = null;
 let indiceMelodiaFinal = 0;
-// Secuencia indicada por Andrés. Mi♭4, La♭4, Sol4, Do4 y Fa4; Si♭ baja a la octava 3.
+// Secuencia indicada por Andrés: registro 1 como base; Si♭0 y el Do0 final bajan una octava.
 const notasMelodiaFinal = [
   311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 261.63, 261.63,
   311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 349.23, 349.23,
   311.13, 311.13, 311.13, 311.13, 415.3, 415.3, 392, 311.13, 311.13, 311.13, 261.63, 261.63,
-  392, 349.23, 233.08, 392, 440, 261.63
+  392, 349.23, 233.08, 392, 349.23, 130.81
 ];
 
 function tocarNotaFinal(button) {
