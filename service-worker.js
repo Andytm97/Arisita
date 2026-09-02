@@ -1,4 +1,4 @@
-const CACHE_NAME = "aris-v5-cover-gallery-editor-20260811-v1";
+const CACHE_NAME = "aris-v6-latest-zoom-spotify-20260902-v1";
 const CORE = [
   "./", "./index.html", "./style.css", "./manifest.webmanifest",
   "./src/app.js", "./src/firebase/firebase-config.js", "./src/firebase/firebase-service.js", "./src/core/utils.js", "./src/core/content-model.js",

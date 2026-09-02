@@ -38,7 +38,7 @@ const templates = {
   texto: `<label class="field"><span>Texto de la carta</span><textarea name="texto" required></textarea></label><label class="field"><span>Firma</span><input name="firma" placeholder="Siempre contigo"></label>`,
   video: `${mediaInput("contenidoArchivo", "Vídeo", "video/*")} ${imageInput("posterArchivo", "Miniatura", false)}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
   audio: `${mediaInput("contenidoArchivo", "Audio", "audio/*", "capture")}<label class="field"><span>Duración visible</span><input name="duracion" placeholder="0:38"></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
-  spotify: `<label class="field"><span>Enlace de Spotify</span><input name="enlace" type="url" required></label><label class="field"><span>Título de la canción</span><input name="cancionTitulo"></label><label class="field"><span>Artista</span><input name="artista"></label>${imageInput("portadaArchivo", "Carátula", false)}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
+  spotify: `<label class="field"><span>Enlace de Spotify</span><input name="enlace" type="url" required><small class="field-hint" id="spotifyLookupStatus">La carátula se obtendrá automáticamente.</small></label><label class="field"><span>Título de la canción</span><input name="cancionTitulo"></label><label class="field"><span>Artista</span><input name="artista"></label>${imageInput("portadaArchivo", "Carátula manual", false)}<p class="field-hint">Solo necesitas elegir una imagen si Spotify no puede encontrarla.</p><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
   youtube: `<label class="field"><span>Enlace de YouTube</span><input name="enlace" type="url" required></label><label class="field"><span>Título del vídeo</span><input name="videoTitulo"></label><label class="field"><span>Canal</span><input name="canal"></label>${imageInput("miniaturaArchivo", "Miniatura", false)}<label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`,
   ubicacion: `<label class="field"><span>Nombre del lugar</span><input name="lugar" required></label><label class="field"><span>Enlace de Maps</span><input name="enlace" type="url" required></label><label class="field"><span>Descripción</span><textarea name="descripcion"></textarea></label>`
 };
@@ -86,7 +86,11 @@ document.getElementById("saveSettings").addEventListener("click", saveSettings);
 initAccordion();
 initConnectionStatus();
 
-function renderFields() { clearPreviewMedia(); fields.innerHTML = templates[tipo.value] || templates.texto; wireFilePreviews(); }
+function renderFields() { clearPreviewMedia(); fields.innerHTML = templates[tipo.value] || templates.texto; wireFilePreviews(); wireSpotifyLookup(); }
+
+let spotifyLookupTimer = 0;
+function wireSpotifyLookup() { const input = fields.querySelector('[name="enlace"]'); if (tipo.value !== "spotify" || !input) return; input.addEventListener("input", () => { clearTimeout(spotifyLookupTimer); spotifyLookupTimer = setTimeout(() => cargarDatosSpotify(input.value.trim()), 450); }); }
+async function cargarDatosSpotify(url) { const status = document.getElementById("spotifyLookupStatus"); if (!/^https:\/\/(open\.)?spotify\.com\//i.test(url)) { if (status) status.textContent = "Pega un enlace válido de Spotify."; return; } if (status) status.textContent = "Buscando carátula…"; try { const response = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`); if (!response.ok) throw new Error("No encontrada"); const info = await response.json(); if (info.thumbnail_url) previewMedia.portada = info.thumbnail_url; const title = form.elements.cancionTitulo; if (title && !title.value.trim() && info.title) title.value = info.title; const artist = form.elements.artista; if (artist && !artist.value.trim() && info.author_name) artist.value = info.author_name; if (status) status.textContent = info.thumbnail_url ? "Carátula encontrada automáticamente." : "Spotify no ha proporcionado una carátula."; updatePreview(); } catch (_) { if (status) status.textContent = "No he podido obtenerla. Puedes añadirla manualmente."; } }
 function wireFilePreviews() {
   fields.querySelectorAll('input[type="file"]').forEach(input => input.addEventListener("change", () => {
     const file = input.files?.[0];
@@ -125,6 +129,7 @@ async function publishMemory(event) {
     const id = editingId || crearIdRecuerdo();
     const fd = new FormData(form);
     const existing = memories.find(memory => memory.id === editingId);
+    if (String(fd.get("tipo")) === "spotify" && !previewMedia.portada) await cargarDatosSpotify(String(fd.get("enlace") || "").trim());
     const page = { ...(existing?.elementos?.[0] || {}), ...pageFromForm() };
     const uploadMap = { contenidoArchivo: "contenido", posterArchivo: "poster", portadaArchivo: "portada", miniaturaArchivo: "miniatura" };
     const uploads = Object.entries(uploadMap);

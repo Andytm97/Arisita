@@ -47,7 +47,7 @@ function imagenesPortada(configuracion) {
 
 function prepararRecuerdosVisibles(items) {
   const now = Date.now();
-  return items.flatMap(memory => {
+  return [...items].sort((a, b) => String(a.fechaISO || a.fecha || "").localeCompare(String(b.fechaISO || b.fecha || "")) || Number(a.createdAt?.seconds || 0) - Number(b.createdAt?.seconds || 0)).flatMap(memory => {
     if (memory.eliminado || memory.publicado === false || memory.publicationMode === "borrador") return [];
     const unlock = memory.availableAt ? new Date(memory.availableAt).getTime() : 0;
     if (!unlock || unlock <= now) return [memory];
@@ -156,6 +156,10 @@ function prepararAplicacion(contenido) {
   paginas = conPaginaFinal(Array.isArray(data.paginas) ? data.paginas : []);
   crearIndicadores();
   mostrarPortada();
+}
+
+function indiceUltimoRecuerdo() {
+  return Math.max(0, paginas.length - 2);
 }
 
 function cargarTarjeta(elemento, pagina) {
@@ -421,7 +425,7 @@ function prepararTransicionPortada() {
 
   // Montamos el álbum por debajo sin convertir todavía el gesto en horizontal.
   enAlbum = true;
-  paginaActual = 0;
+  paginaActual = indiceUltimoRecuerdo();
   mostrarPagina({ instantaneo: true });
   enAlbum = false;
   document.body.classList.add("cover-gesture-active");
@@ -849,11 +853,30 @@ function abrirVideo(ruta, titulo = "Vídeo") {
   modalMedia.querySelector("video")?.play().catch(() => {});
 }
 
+function abrirFoto(ruta, titulo = "Recuerdo fotográfico") {
+  if (!ruta) return;
+  cerrarModalMedia();
+  modalMedia = document.createElement("div");
+  modalMedia.className = "media-modal photo-modal";
+  modalMedia.innerHTML = `<div class="media-modal-panel photo-modal-panel" role="dialog" aria-modal="true" aria-label="${atributoSeguro(titulo)}"><div class="media-modal-header"><p>${escapar(titulo)}</p><button type="button" class="media-modal-close" aria-label="Cerrar">×</button></div><img src="${atributoSeguro(ruta)}" alt="${atributoSeguro(titulo)}"></div>`;
+  document.body.appendChild(modalMedia);
+  requestAnimationFrame(() => modalMedia?.classList.add("is-open"));
+  modalMedia.querySelector(".media-modal-close")?.addEventListener("click", cerrarModalMedia);
+  modalMedia.addEventListener("click", evento => { if (evento.target === modalMedia) cerrarModalMedia(); });
+}
+
 zonaTarjetas.addEventListener("pointerdown", evento => {
   if (evento.target.closest("button, a, video, audio, [data-audio-seek]")) evento.stopPropagation();
 }, true);
 
 zonaTarjetas.addEventListener("click", evento => {
+  const foto = evento.target.closest("[data-photo-expand]");
+  if (foto && Math.abs(movimientoX) < 10 && Math.abs(movimientoY) < 10) {
+    evento.preventDefault();
+    evento.stopPropagation();
+    abrirFoto(foto.dataset.photoExpand, foto.dataset.photoTitle);
+    return;
+  }
   const boton = evento.target.closest("[data-media-action]");
   if (!boton) return;
   evento.preventDefault();
@@ -863,6 +886,8 @@ zonaTarjetas.addEventListener("click", evento => {
   else if (accion === "video") abrirVideo(boton.dataset.media, boton.dataset.title);
   else if (accion === "external" && boton.dataset.url) window.open(boton.dataset.url, "_blank", "noopener,noreferrer");
 });
+
+zonaTarjetas.addEventListener("keydown", evento => { const foto = evento.target.closest("[data-photo-expand]"); if (foto && (evento.key === "Enter" || evento.key === " ")) { evento.preventDefault(); abrirFoto(foto.dataset.photoExpand, foto.dataset.photoTitle); } });
 
 zonaTarjetas.addEventListener("pointerdown", iniciarSeekAudio, true);
 zonaTarjetas.addEventListener("pointermove", moverSeekAudio, { passive: false, capture: true });

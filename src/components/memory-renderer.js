@@ -21,7 +21,7 @@ export function renderTarjeta(pagina) {
 
   if (tipo === "foto") {
     return `<div class="card-inner photo-card">${meta}
-      <div class="photo-wrap"><img class="photo" src="${escapar(pagina.contenido || "assets/fondo.jpg")}" alt="Recuerdo fotográfico"></div>
+      <div class="photo-wrap photo-expand" data-photo-expand="${atributoSeguro(pagina.contenido || "assets/fondo.jpg")}" data-photo-title="${atributoSeguro(pagina.titulo || "Recuerdo fotográfico")}" role="button" tabindex="0" aria-label="Ver fotografía en grande"><img class="photo" src="${escapar(pagina.contenido || "assets/fondo.jpg")}" alt="Recuerdo fotográfico"></div>
       <div class="card-copy"><h2 class="card-title">${escapar(pagina.titulo || pagina.texto || "Un recuerdo contigo")}</h2><p class="card-description">${escapar(pagina.descripcion || "")}</p></div>
     </div>`;
   }

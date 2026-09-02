@@ -337,6 +337,7 @@ a { -webkit-tap-highlight-color: transparent; }
   overflow: hidden;
   border-radius: 25px;
   background: rgba(0,0,0,.18);
+  cursor: zoom-in;
 }
 
 .photo-card .photo {
@@ -1489,6 +1490,7 @@ body.cover-gesture-settling .album {
   max-height: 72dvh;
   background: #000;
 }
+.photo-modal-panel{width:min(94vw,900px);max-height:92dvh;background:rgba(14,12,16,.98)}.photo-modal-panel>img{display:block;width:100%;height:auto;max-height:calc(92dvh - 54px);object-fit:contain;background:#09080a}.photo-expand:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:3px}
 
 @media (max-height: 760px) {
   .media-action { min-height: 40px; margin-top: 12px; }
